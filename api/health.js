@@ -18,10 +18,10 @@ export default async function handler(req, res) {
   const wantsPing = /[?&]ping=1/.test(req.url || '');
   if (wantsPing && s.configured) {
     try {
-      const reply = await chat([{ role: 'user', content: 'Reply with the single word: ready' }], { timeoutMs: 20000 });
+      const reply = await chat([{ role: 'user', content: 'Reply with the single word: ready' }], { timeoutMs: 4000, deadlineMs: 9000 });
       out.ping = { ok: true, model: reply.model, ms: reply.ms, reply: reply.text.slice(0, 40) };
     } catch (error) {
-      out.ping = { ok: false, error: error.message };
+      out.ping = { ok: false, error: error.message, attempts: error.attempts || [] };
     }
   }
   sendJson(res, 200, out);
