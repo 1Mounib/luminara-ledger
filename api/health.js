@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     out.modelsForThisKey = (await discoverModels(s)).slice(0, 12); // proves the key works
     try {
       const reply = await chat([{ role: 'user', content: 'Reply with the single word: ready' }], { timeoutMs: 7000, deadlineMs: 8500 });
-      out.ping = { ok: true, model: reply.model, ms: reply.ms, reply: reply.text.slice(0, 40) };
+      out.ping = { ok: true, model: reply.model, ms: reply.ms, reply: reply.text.slice(0, 40), skipped: reply.skipped || [] };
     } catch (error) {
       out.ping = { ok: false, error: error.message, attempts: error.attempts || [] };
     }
