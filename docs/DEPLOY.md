@@ -15,13 +15,15 @@ You need two free accounts: **GitHub**, which stores the code, and **Vercel**, w
 The site works now, using the on-device agents.
 
 ## 3. Turn on the cloud AI (Engine B)
-1. Go to **console.groq.com** and choose **API Keys**, then **Create API Key**. Copy the key.
-2. In Vercel, open your project and go to **Settings**, then **Environment Variables**.
-   - Name: `GROQ_API_KEY`
-   - Value: paste the key
+1. Go to **aistudio.google.com**, click **Get API key**, then **Create API key**, and copy it.
+   (Groq also works via `GROQ_API_KEY`, but it blocked sign-ups from outlook.com and student emails.)
+2. In Vercel, open the project and go to **Settings**, then **Environment Variables**. Add:
+   - Key `GEMINI_API_KEY`
+   - Value: the key
    - Click **Save**
 3. Go to **Deployments**, click **...** on the latest one, and choose **Redeploy**.
-4. Open the site. The status line in panel 1 should say *"Dual-engine - masked data to Groq"*.
+4. Check it works by opening `https://<your-site>/api/health?ping=1`. It should show `"ping": {"ok": true, ...}`.
+5. In the app, the status line in panel 1 should say *"Dual-engine - masked data to Google Gemini"*.
 
 ## Updating the site
 Every change pushed to GitHub redeploys automatically.

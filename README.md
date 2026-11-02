@@ -11,7 +11,7 @@ NIT3004 IT Capstone Project 2, Victoria University · Luminara Digital team.
 
 1. **Upload** an income statement, a WFH timesheet (CSV), receipts and bills. PDFs, CSVs and receipt photos all work.
 2. **Engine A (inside the browser)** reads every line along with its position on the page. It then masks the TFN, ABN, name, address, email, phone and account numbers, replacing them with tokens like `<PII_TFN_1>`.
-3. **Engine B (cloud AI on Groq)** runs five specialist agents in parallel. They see only the masked text.
+3. **Engine B (cloud AI on Google Gemini or Groq)** runs five specialist agents in parallel. They see only the masked text.
 4. **The coordinator** checks every AI number against the source line it cites (the hallucination guard), and compares it with the on-device rules.
 5. **The deterministic tax engine** does all the maths: the 2025-26 brackets, Medicare levy, LITO, the 70c/hour fixed rate, and decline in value.
 6. **The accountant** reviews the result side by side with the source documents, overrides values (a justification is required), and signs off. Every action goes into a **hash-chained audit ledger**.
@@ -41,7 +41,7 @@ api/                     Engine B: Vercel serverless functions
   agents.js              POST: five parallel AI agents (masked data only)
   copilot.js             POST: plain-English explanations
   health.js              GET: is the cloud AI configured?
-lib/llm.js               talks to Groq (or any OpenAI-compatible API, e.g. Ollama)
+lib/llm.js               talks to Gemini or Groq (or any OpenAI-compatible API, e.g. Ollama)
 tests/                   automated tests (node --test)
 scripts/                 dev server + sample generator
 docs/                    deployment guide, AI-use log, roadmap, requirements trace
@@ -55,7 +55,7 @@ You need [Node.js](https://nodejs.org) 20 or newer. There's nothing else to inst
 node scripts/dev-server.mjs
 ```
 
-Then open http://localhost:3000. To use the cloud AI locally, create a file called `.env` containing `GROQ_API_KEY=your-key`.
+Then open http://localhost:3000. To use the cloud AI locally, create a file called `.env` containing `GEMINI_API_KEY=your-key`.
 
 ## Run the tests
 
@@ -74,8 +74,9 @@ See **[docs/DEPLOY.md](docs/DEPLOY.md)**. It uses GitHub and Vercel, both free.
 
 | Name | Needed? | What |
 |---|---|---|
-| `GROQ_API_KEY` | for cloud AI | key from console.groq.com |
-| `AI_MODEL` | optional | override the model (default `llama-3.3-70b-versatile`, with automatic fallbacks) |
+| `GEMINI_API_KEY` | for cloud AI (option 1) | key from aistudio.google.com, used first if set |
+| `GROQ_API_KEY` | for cloud AI (option 2) | key from console.groq.com |
+| `AI_MODEL` | optional | force a model name (otherwise the app tries a list of current models, then asks the provider) |
 | `AI_BASE_URL` | optional | use another OpenAI-compatible provider, e.g. `http://localhost:11434/v1` for Ollama |
 
 Without a key, the site still works fully using the on-device agents.
