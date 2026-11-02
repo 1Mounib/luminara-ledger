@@ -1,0 +1,19 @@
+{
+  "name": "luminara-ledger",
+  "version": "0.8.0",
+  "private": true,
+  "description": "Luminara Ledger - sovereign dual-engine AI tax assistant (NIT3004 Capstone 2, WFH use case)",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "samples": "node scripts/make-samples.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.2.108"
+  }
+}

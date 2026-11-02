@@ -1,0 +1,78 @@
+{
+  "financialYear": "2024-25",
+  "periodStart": "2024-07-01",
+  "periodEnd": "2025-06-30",
+  "notes": "Tax rules are kept in this file, not in the code (FR-018). To update for a new year, copy this file and change the numbers. Sources: ATO resident tax rates 2024-25; ATO working from home fixed rate method (70c/hour for 2024-25 and 2025-26); Medicare levy low-income thresholds 2024-25 (singles).",
+  "residentBrackets": [
+    {
+      "from": 0,
+      "to": 18200,
+      "base": 0,
+      "rate": 0
+    },
+    {
+      "from": 18200,
+      "to": 45000,
+      "base": 0,
+      "rate": 0.16
+    },
+    {
+      "from": 45000,
+      "to": 135000,
+      "base": 4288,
+      "rate": 0.3
+    },
+    {
+      "from": 135000,
+      "to": 190000,
+      "base": 31288,
+      "rate": 0.37
+    },
+    {
+      "from": 190000,
+      "to": null,
+      "base": 51638,
+      "rate": 0.45
+    }
+  ],
+  "lowIncomeTaxOffset": {
+    "maximum": 700,
+    "fullOffsetUpTo": 37500,
+    "firstTaperEndsAt": 45000,
+    "firstTaperRate": 0.05,
+    "secondTaperRate": 0.015
+  },
+  "medicareLevy": {
+    "rate": 0.02,
+    "singleLowerThreshold": 27222,
+    "singleUpperThreshold": 34027,
+    "shadeInRate": 0.1
+  },
+  "medicareLevySurcharge": {
+    "singleBaseThreshold": 97000,
+    "note": "Used only to raise a flag asking for a private health insurance statement (FR-024). The surcharge itself is not calculated in this release."
+  },
+  "workFromHome": {
+    "fixedRatePerHour": 0.7,
+    "coveredExpenseTypes": [
+      "electricity",
+      "gas",
+      "internet",
+      "phone",
+      "stationery"
+    ]
+  },
+  "depreciation": {
+    "immediateDeductionThreshold": 300,
+    "effectiveLifeYears": {
+      "office_chair": 10,
+      "desk": 10,
+      "laptop": 2,
+      "monitor": 4,
+      "mobile_phone": 3,
+      "printer": 3,
+      "other": 5
+    },
+    "effectiveLifeNote": "Effective lives follow the Capstone 1 use case (chair = 10 years). Confirm each value against ATO TR 2022/1 before relying on them."
+  }
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Luminara Ledger · Sovereign AI tax assistant</title>
+  <meta name="description" content="Work-from-home tax deductions with a privacy-first, dual-engine AI. Documents are read on your device; only masked data reaches the cloud; a deterministic engine does the maths.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="landing">
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Sovereign dual-engine AI · Work-from-home deductions</p>
+        <h1>Your tax documents never leave your device <em>unmasked</em>.</h1>
+        <p class="lead">Luminara Ledger reads your income statement, timesheet and receipts in your browser, hides your personal details, lets AI agents classify them, and leaves the maths to a rules engine that cannot hallucinate.</p>
+        <ul class="pillars">
+          <li><b>Engine A · on your device</b><span>Reads PDFs, CSVs and receipt photos. Masks TFN, ABN, names, addresses and account numbers.</span></li>
+          <li><b>Engine B · cloud AI agents</b><span>Five specialist agents see only masked text. Every answer is checked against the source line.</span></li>
+          <li><b>Rules engine · deterministic</b><span>ATO 2025-26 rates, 70c/hour fixed rate, decline in value. Same input, same answer, every time.</span></li>
+        </ul>
+      </div>
+
+      <div class="signin card" aria-labelledby="signinTitle">
+        <h2 id="signinTitle">Sign in</h2>
+        <p class="muted small" id="nextNote"></p>
+        <form id="signinForm">
+          <label>Your name<input id="nameInput" required autocomplete="name" placeholder="e.g. Alex Nguyen"></label>
+          <fieldset class="roles">
+            <legend>I am a...</legend>
+            <label><input type="radio" name="role" value="taxpayer" checked><span><b>Taxpayer</b><small>Upload documents, see my estimate</small></span></label>
+            <label><input type="radio" name="role" value="accountant"><span><b>Accountant</b><small>Review, override and approve returns</small></span></label>
+          </fieldset>
+          <button class="btn gold block">Continue</button>
+        </form>
+        <div class="quick">
+          <small>Demo accounts</small>
+          <button class="btn ghost small" data-demo="Alex Nguyen|taxpayer">Alex Nguyen · taxpayer</button>
+          <button class="btn ghost small" data-demo="Jordan Lee CPA|accountant">Jordan Lee · accountant</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="flow" aria-label="How it works">
+      <ol>
+        <li><b>Upload</b><span>PDF · CSV · photo</span></li>
+        <li><b>Read</b><span>text + position of every line</span></li>
+        <li><b>Mask</b><span>&lt;PII_TFN_1&gt; replaces 123 456 782</span></li>
+        <li><b>Agents</b><span>5 specialists, run in parallel</span></li>
+        <li><b>Verify</b><span>AI numbers must exist in the source</span></li>
+        <li><b>Calculate</b><span>deterministic rules engine</span></li>
+        <li><b>Approve</b><span>accountant signs off</span></li>
+      </ol>
+    </section>
+
+    <footer class="foot">
+      <p>Student prototype for NIT3004 IT Capstone Project 2, Victoria University · Luminara Digital team. Estimates only, not tax advice, and not connected to the ATO. Sample documents are fictional.</p>
+    </footer>
+  </main>
+  <script type="module">
+    import { signIn, getSession, LOGO_SVG } from '/js/ui/common.js';
+    const params = new URLSearchParams(location.search);
+    const go = (s) => location.href = params.get('next') || (s.role === 'accountant' ? '/accountant.html' : '/app.html');
+    document.querySelector('.hero-copy').insertAdjacentHTML('afterbegin', `<a class="brand big" href="/">${LOGO_SVG}<span><b>Luminara Ledger</b><small>Sovereign by design</small></span></a>`);
+    if (params.get('role')) {
+      document.querySelector(`input[value="${params.get('role')}"]`).checked = true;
+      document.getElementById('nextNote').textContent = `Please sign in as ${params.get('role') === 'accountant' ? 'an accountant' : 'a taxpayer'} to continue.`;
+    }
+    const s = getSession();
+    if (s && !params.get('role')) document.getElementById('nextNote').innerHTML = `Signed in as <b></b>. <a href="${s.role === 'accountant' ? '/accountant.html' : '/app.html'}">Continue</a>`, document.querySelector('#nextNote b').textContent = s.name;
+    document.getElementById('signinForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      go(signIn(document.getElementById('nameInput').value, document.querySelector('input[name=role]:checked').value));
+    });
+    document.querySelectorAll('[data-demo]').forEach((b) => b.addEventListener('click', () => {
+      const [name, role] = b.dataset.demo.split('|');
+      go(signIn(name, role));
+    }));
+  </script>
+</body>
+</html>

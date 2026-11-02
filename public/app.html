@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My tax return · Luminara Ledger</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="app">
+  <main class="workspace">
+    <!-- PANEL 1: documents (Engine A runs here, in the browser) -->
+    <section class="panel" id="docsPanel" aria-labelledby="docsTitle">
+      <div class="panel-head">
+        <h2 id="docsTitle"><span class="step">1</span> Your documents</h2>
+        <button class="btn ghost small" id="resetBtn" title="Remove everything and start again">Start again</button>
+      </div>
+      <p class="hint">Files are read <b>inside your browser</b>. Your name, TFN, address and account numbers are masked before anything is sent anywhere.</p>
+      <p class="engine-status" id="engineStatus"><span class="dot"></span> Checking AI status...</p>
+
+      <div id="dropzone" class="dropzone">
+        <p><b>Drop files here</b><br><small>PDF, CSV, or a photo of a receipt</small></p>
+        <button class="btn" id="chooseBtn" type="button">Choose files</button>
+        <input type="file" id="fileInput" multiple accept=".pdf,.csv,.png,.jpg,.jpeg,.webp" hidden>
+      </div>
+      <div class="sample-row">
+        <button class="btn ghost small" id="loadSamples" type="button">Load sample documents</button>
+        <button class="btn ghost small" id="loadOcr" type="button">Add receipt photo (OCR)</button>
+      </div>
+
+      <ul class="doc-list" id="docList"></ul>
+      <ol class="pipeline" id="pipeline"></ol>
+
+      <button class="btn gold block" id="analyseBtn" disabled>Analyse my documents</button>
+      <button class="btn ghost block" id="privacyBtn">See exactly what left this device</button>
+    </section>
+
+    <!-- PANEL 2: tax position (deterministic rules engine) -->
+    <section class="panel" id="positionPanel" aria-labelledby="posTitle">
+      <div class="panel-head"><h2 id="posTitle"><span class="step">2</span> Your tax position <small>2025-26</small></h2></div>
+      <div id="positionBody"></div>
+      <button class="btn gold block" id="submitBtn" hidden>Send to my accountant for review</button>
+    </section>
+
+    <!-- PANEL 3: Copilot -->
+    <section class="panel copilot" id="copilotPanel" aria-labelledby="copTitle">
+      <div class="panel-head"><h2 id="copTitle"><span class="step">3</span> Copilot</h2></div>
+      <div class="chat-log" aria-live="polite"></div>
+      <div class="chips">
+        <button data-ask="How did you work out my refund?">My refund?</button>
+        <button data-ask="Why isn't my electricity bill claimed?">Electricity bill?</button>
+        <button data-ask="How was the chair deduction worked out?">The chair?</button>
+        <button data-ask="What records do I need to keep?">Records to keep?</button>
+      </div>
+      <form class="chat-form"><input type="text" placeholder="Ask about your return..." aria-label="Ask the Copilot"><button class="btn gold">Ask</button></form>
+    </section>
+  </main>
+  <script type="module" src="/js/ui/taxpayer.js"></script>
+</body>
+</html>
