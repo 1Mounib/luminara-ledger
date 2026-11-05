@@ -34,6 +34,7 @@ create table if not exists private.settings (
 --   update private.settings set value = 'NEW-CODE' where key = 'practice_code';
 insert into private.settings (key, value) values ('practice_code', 'LUMINARA-2026')
   on conflict (key) do nothing;
+alter table private.settings enable row level security;  -- no policies = no website access at all
 
 -- ---------------------------------------------------------------------
 -- 1. Profiles: one row per user, with their role
