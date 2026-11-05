@@ -7,12 +7,11 @@
 - Hash-chained audit ledger and an encrypted on-device vault
 - 22 automated tests
 
-## Weeks 2-3
-1. **Real accounts and a database (Supabase, Sydney region, free plan)**
-   - Supabase Auth email logins for taxpayers and accountants (FR-001/002)
-   - Tables: `tenants`, `tax_profiles`, `ingested_documents`, `finalized_assessments`, `audit_log` (Capstone 1 Appendix A)
-   - Accountants see their clients' submitted returns from any computer
-   - The audit log moves to an append-only table
+## Done 5 Nov
+- **Real accounts and a database** (Supabase, Sydney): logins, roles with a practice code, Row Level Security, an append-only hash-chained audit log, and masked-only storage. Accountants can review from any computer.
+
+## Next
+1. **Test Lab page** with experimental results
 2. **Measure and evaluate** for the analysis report (LO3, LO4)
    - Time per document, with and without the cloud AI (NFR-008)
    - Masking recall on a set of test documents with known PII

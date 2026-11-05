@@ -23,21 +23,45 @@
       </div>
 
       <div class="signin card" aria-labelledby="signinTitle">
-        <h2 id="signinTitle">Sign in</h2>
+        <h2 id="signinTitle">Welcome</h2>
         <p class="muted small" id="nextNote"></p>
-        <form id="signinForm">
-          <label>Your name<input id="nameInput" required autocomplete="name" placeholder="e.g. Alex Nguyen"></label>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="signin" class="on">Sign in</button>
+          <button type="button" role="tab" data-tab="signup">Create account</button>
+          <button type="button" role="tab" data-tab="demo">Offline demo</button>
+        </div>
+
+        <!-- Sign in with an account (Supabase Auth) -->
+        <form id="signinForm" data-panel="signin">
+          <label>Email<input id="inEmail" type="email" required autocomplete="email"></label>
+          <label>Password<input id="inPassword" type="password" required autocomplete="current-password" minlength="8"></label>
+          <p class="form-msg" id="inMsg" aria-live="polite"></p>
+          <button class="btn gold block">Sign in</button>
+        </form>
+
+        <!-- Create an account -->
+        <form id="signupForm" data-panel="signup" hidden>
+          <label>Full name<input id="upName" required autocomplete="name" placeholder="e.g. Alex Nguyen"></label>
+          <p class="hint-small">Your name is used to mask your own details in documents before the AI sees them.</p>
+          <label>Email<input id="upEmail" type="email" required autocomplete="email"></label>
+          <label>Password (at least 8 characters)<input id="upPassword" type="password" required autocomplete="new-password" minlength="8"></label>
           <fieldset class="roles">
             <legend>I am a...</legend>
-            <label><input type="radio" name="role" value="taxpayer" checked><span><b>Taxpayer</b><small>Upload documents, see my estimate</small></span></label>
-            <label><input type="radio" name="role" value="accountant"><span><b>Accountant</b><small>Review, override and approve returns</small></span></label>
+            <label><input type="radio" name="upRole" value="taxpayer" checked><span><b>Taxpayer</b><small>Upload documents, see my estimate</small></span></label>
+            <label><input type="radio" name="upRole" value="accountant"><span><b>Accountant</b><small>Needs the practice code</small></span></label>
           </fieldset>
-          <button class="btn gold block">Continue</button>
+          <label id="codeRow" hidden>Practice code<input id="upCode" autocomplete="off" placeholder="Given to you by the practice"></label>
+          <p class="form-msg" id="upMsg" aria-live="polite"></p>
+          <button class="btn gold block">Create account</button>
         </form>
-        <div class="quick">
-          <small>Demo accounts</small>
-          <button class="btn ghost small" data-demo="Alex Nguyen|taxpayer">Alex Nguyen · taxpayer</button>
-          <button class="btn ghost small" data-demo="Jordan Lee CPA|accountant">Jordan Lee · accountant</button>
+
+        <!-- Offline demo: no account, data stays in this browser -->
+        <div data-panel="demo" hidden>
+          <p class="muted small">No account and no database: everything stays in this browser. Useful for a quick demo without internet.</p>
+          <div class="quick">
+            <button class="btn ghost" data-demo="Alex Nguyen|taxpayer">Alex Nguyen · taxpayer</button>
+            <button class="btn ghost" data-demo="Jordan Lee CPA|accountant">Jordan Lee · accountant</button>
+          </div>
         </div>
       </div>
     </section>
@@ -58,25 +82,6 @@
       <p>Student prototype for NIT3004 IT Capstone Project 2, Victoria University · Luminara Digital team. Estimates only, not tax advice, and not connected to the ATO. Sample documents are fictional.</p>
     </footer>
   </main>
-  <script type="module">
-    import { signIn, getSession, LOGO_SVG } from '/js/ui/common.js';
-    const params = new URLSearchParams(location.search);
-    const go = (s) => location.href = params.get('next') || (s.role === 'accountant' ? '/accountant.html' : '/app.html');
-    document.querySelector('.hero-copy').insertAdjacentHTML('afterbegin', `<a class="brand big" href="/">${LOGO_SVG}<span><b>Luminara Ledger</b><small>Sovereign by design</small></span></a>`);
-    if (params.get('role')) {
-      document.querySelector(`input[value="${params.get('role')}"]`).checked = true;
-      document.getElementById('nextNote').textContent = `Please sign in as ${params.get('role') === 'accountant' ? 'an accountant' : 'a taxpayer'} to continue.`;
-    }
-    const s = getSession();
-    if (s && !params.get('role')) document.getElementById('nextNote').innerHTML = `Signed in as <b></b>. <a href="${s.role === 'accountant' ? '/accountant.html' : '/app.html'}">Continue</a>`, document.querySelector('#nextNote b').textContent = s.name;
-    document.getElementById('signinForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      go(signIn(document.getElementById('nameInput').value, document.querySelector('input[name=role]:checked').value));
-    });
-    document.querySelectorAll('[data-demo]').forEach((b) => b.addEventListener('click', () => {
-      const [name, role] = b.dataset.demo.split('|');
-      go(signIn(name, role));
-    }));
-  </script>
+  <script type="module" src="/js/ui/landing.js"></script>
 </body>
 </html>

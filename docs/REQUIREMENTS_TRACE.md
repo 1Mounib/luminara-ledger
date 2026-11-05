@@ -4,8 +4,8 @@ Status: ✅ done · 🟡 partly done (with justification) · ⏳ planned (see RO
 
 | ID | Requirement (short) | Status | Where / how |
 |---|---|---|---|
-| FR-001 | Roles: taxpayer, accountant, admin | 🟡 | Taxpayer and accountant views with a role check (`common.js`). Real logins (Supabase Auth) and the admin role are next. |
-| FR-002 | JWT sessions, lockout, idle lock | ⏳ | Comes with Supabase Auth. |
+| FR-001 | Roles: taxpayer, accountant, admin | ✅ | Supabase Auth accounts. The role is decided by the database (an accountant needs the practice code) and enforced by Row Level Security (`supabase/schema.sql`, 17 attack tests). An admin role exists in the schema; there is no admin screen yet. |
+| FR-002 | JWT sessions, lockout, idle lock | 🟡 | JWT sessions (Supabase) with automatic refresh, and sign-out after 30 minutes idle. Supabase rate-limits failed logins; there's no custom 5-attempt lockout. |
 | FR-003 | PDF, image, CSV ingestion | ✅ | `extract.js`. XLSX is not supported yet. |
 | FR-004 | UUID, SHA-256, encrypted storage, queue | ✅ | SHA-256 fingerprint as the document ID with duplicate detection, plus an AES-256-GCM encrypted file vault (`vault.js`). |
 | FR-005 | Live status: ingest → parse → mask → swarm → ready | ✅ | Pipeline chips in panel 1. |
@@ -37,6 +37,6 @@ Status: ✅ done · 🟡 partly done (with justification) · ⏳ planned (see RO
 | NFR-008 | ≤45 s per document | ✅ | To be measured in the analysis report. |
 | NFR-010 | Source lineage for every value | ✅ | "Source" chips. |
 | NFR-011 | Override with justification, audit | ✅ | Justification is required. The ledger records the field, old and new values, user, time and refs. |
-| NFR-012 | Immutable audit log, 12 months | 🟡 | Hash chain detects tampering. The browser stores it until it moves to the database. |
+| NFR-012 | Immutable audit log, 12 months | ✅ | `audit_log` table: append-only (no update or delete for any user), with the SHA-256 chain computed by the database and `verify_audit_chain()`. Retention is the database's (no automatic deletion). |
 | NFR-013 | One-command Docker on VPS | ✖ | Replaced by Vercel git deploy, which is simpler for the client and free. |
 | NFR-014 | nomic-embed-text embeddings | ✖ | Not needed for the WFH scope. |

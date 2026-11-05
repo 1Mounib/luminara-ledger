@@ -18,18 +18,32 @@ export { pdfjsLib };
  */
 export async function renderDocument(container, doc, highlightIds = []) {
   container.innerHTML = '<div class="viewer-loading">Opening document...</div>';
-  const blob = await loadFile(doc.docId);
-  if (!blob) { container.innerHTML = '<p class="muted">The original file is not stored on this device.</p>'; return; }
+  const blob = await loadFile(doc.docId).catch(() => null);
   const wanted = new Set(highlightIds);
   const items = (doc.items || []).filter((i) => i.docId === doc.docId);
+  const masked = !blob; // original not on this device -> show the masked copy from the database
 
   if (doc.kind === 'csv') {
     const rows = items;
     const headers = rows[0]?.cells ? Object.keys(rows[0].cells) : [];
-    container.innerHTML = `<div class="csv-view"><table><thead><tr><th>#</th>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows
-      .map((r) => `<tr class="${wanted.has(r.id) ? 'hl' : ''}" data-id="${escapeHtml(r.id)}"><td>${r.row}</td>${headers.map((h) => `<td>${escapeHtml(r.cells[h])}</td>`).join('')}</tr>`)
+    container.innerHTML = `${masked ? MASKED_NOTE : ''}<div class="csv-view"><table><thead><tr><th>#</th>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows
+      .map((r) => `<tr class="${wanted.has(r.id) ? 'hl' : ''}" data-id="${escapeHtml(r.id)}"><td>${r.row ?? ''}</td>${headers.map((h) => `<td>${showTokens(r.cells[h])}</td>`).join('')}</tr>`)
       .join('')}</tbody></table></div>`;
     container.querySelector('tr.hl')?.scrollIntoView({ block: 'center' });
+    return;
+  }
+
+  if (masked) {
+    // Rebuild the page from the masked lines and their saved positions
+    const page = items.find((i) => wanted.has(i.id))?.page || 1;
+    const lines = items.filter((i) => (i.page || 1) === page && i.bbox);
+    if (!lines.length) { container.innerHTML = '<p class="muted">This document has no saved layout.</p>'; return; }
+    container.innerHTML = `${MASKED_NOTE}<div class="recon-page">${lines.map((l) => {
+      const [x0, y0, x1, y1] = l.bbox;
+      return `<div class="recon-line" style="left:${x0 / 10}%;top:${y0 / 10}%;max-width:${100 - x0 / 10}%;height:${Math.max(1.4, (y1 - y0) / 10)}%">${showTokens(l.text)}</div>`
+        + (wanted.has(l.id) ? `<div class="hl-box" title="${escapeHtml(l.text)}" style="left:${x0 / 10 - 0.6}%;top:${y0 / 10 - 0.4}%;width:${(x1 - x0) / 10 + 1.2}%;height:${(y1 - y0) / 10 + 0.8}%"></div>` : '');
+    }).join('')}</div>`;
+    container.querySelector('.hl-box')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     return;
   }
 
@@ -71,6 +85,13 @@ export async function renderDocument(container, doc, highlightIds = []) {
   container.innerHTML = '';
   container.append(stage);
   stage.querySelector('.hl-box')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+const MASKED_NOTE = '<p class="viewer-note">The original file stays on the client\'s own device. This is the <b>masked copy</b> rebuilt from the database: private details appear as tokens such as &lt;PII_PERSON_1&gt;.</p>';
+
+/** Escapes text and styles the PII tokens so they stand out. */
+function showTokens(text) {
+  return escapeHtml(text).replace(/&lt;PII_[A-Z]+_\d+&gt;/g, (t) => `<span class="tok">${t}</span>`);
 }
 
 /** Opens the viewer in a pop-up window over the page. */

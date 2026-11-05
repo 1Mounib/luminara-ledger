@@ -70,14 +70,17 @@ export async function ingestFile(file, masking, knownIds, onStage = () => {}) {
     const m = masking.mask(item.text);
     maskedCount += m.found.length;
     return {
+      // positions (page, bbox, row) are kept so the masked copy can be shown as a page;
+      // they contain no personal information
       id: item.id, docId, docName: maskedName, text: m.text, confidence: item.confidence,
+      page: item.page, ...(item.bbox ? { bbox: item.bbox } : {}), ...(item.row ? { row: item.row } : {}),
       ...(item.cells ? { cells: Object.fromEntries(Object.entries(item.cells).map(([k, v]) => [k, masking.mask(v).text])) } : {})
     };
   });
 
   const confidence = extracted.averageConfidence ?? 100;
   return {
-    doc: { docId, docName: file.name, kind, lines: extracted.items.length, maskedCount, confidence, lowConfidence: confidence < 85 },
+    doc: { docId, docName: file.name, maskedName, kind, lines: extracted.items.length, maskedCount, confidence, lowConfidence: confidence < 85 },
     items: extracted.items,   // real text + positions: stays on this device
     masked                    // masked text: the only version that may be sent
   };

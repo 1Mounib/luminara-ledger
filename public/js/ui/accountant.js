@@ -3,18 +3,17 @@
  * verification, NFR-011 overrides with justification, audit ledger).
  * Nothing is "lodged" until the accountant approves (Human Control Always).
  */
-import { requireRole, renderHeader, listReturns, getReturn, saveReturn, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
+import { requireRole, renderHeader, listReturns, getReturn, saveReturn, getLedger, isCloud, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
 import { editableFields, setPath, getPath, toEngineInput } from '../engine/facts.js';
 import { calculateReturn } from '../engine/taxEngine.js';
 import { complianceAgent } from '../engine/localAgents.js';
-import { createLedger } from '../engine/auditLedger.js';
 import { createMaskingSession } from '../engine/redact.js';
 import { renderDocument } from './viewer.js';
 import { ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
 
 const user = requireRole('accountant');
 renderHeader(location.hash === '#audit' ? 'audit' : 'accountant');
-const ledger = createLedger();
+const ledger = getLedger();
 let selectedId = null;
 let viewerDoc = null;
 
@@ -30,15 +29,21 @@ function route() {
 }
 
 // ------------------------------------------------------------ queue
-function renderQueue() {
-  const returns = listReturns().filter((r) => r.status !== 'draft').sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
+async function renderQueue() {
+  let returns = [];
+  try {
+    // With an account, the database only returns what an accountant is allowed to see
+    returns = (await listReturns()).filter((r) => r.status !== 'draft').sort((a, b) => (b.riskScore || 0) - (a.riskScore || 0));
+  } catch (error) {
+    toast(`Could not load the client queue: ${error.message}`, 'error');
+  }
+  if (!selectedId && returns.length) selectedId = returns[0].id;
   $('#queue').innerHTML = returns.map((r) => html`
     <li class="${r.id === selectedId ? 'on' : ''}" data-id="${r.id}">
       <div><b>${r.owner}</b><small>${r.id} · FY ${r.financialYear}</small></div>
       <div class="q-right"><span class="pill ${r.status}">${r.status}</span><span class="risk r${band(r.riskScore)}">risk ${r.riskScore ?? 0}</span></div>
     </li>`).join('') || '<li class="empty">No returns waiting. Ask a client to send one, or load the demo client.</li>';
-  $$('#queue li[data-id]').forEach((li) => li.addEventListener('click', () => { selectedId = li.dataset.id; renderQueue(); }));
-  if (!selectedId && returns.length) { selectedId = returns[0].id; return renderQueue(); }
+  $$('#queue li[data-id]').forEach((li) => li.addEventListener('click', () => { selectedId = li.dataset.id; viewerDoc = null; renderQueue(); }));
   renderDetail();
 }
 
@@ -47,11 +52,12 @@ $('#demoClientBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Processing sample documents...';
   try {
-    const owner = 'Alex Nguyen';
-    const masking = createMaskingSession({ knownNames: [owner] });
+    const owner = isCloud() ? 'Alex Nguyen (demo)' : 'Alex Nguyen';
+    const masking = createMaskingSession({ knownNames: ['Alex Nguyen'] });
     const docs = [], items = [], masked = [];
     const known = new Set();
     for (const file of await sampleFiles(UC1_SAMPLES)) {
+      // (the sample client's name is masked as "Alex Nguyen", like a real client's would be)
       const out = await ingestFile(file, masking, known);
       if (out.duplicate) continue;
       known.add(out.doc.docId);
@@ -60,8 +66,9 @@ $('#demoClientBtn').addEventListener('click', async () => {
     const rules = await loadRules('2025-26');
     const { analysis, result } = await analyse({ docs, masked, rules, useCloud: false });
     const id = `R-${Date.now().toString(36).toUpperCase()}`;
-    saveReturn({ id, owner, status: 'submitted', financialYear: '2025-26', docs, items, masked, analysis, result, riskScore: analysis.riskScore, createdAt: new Date().toISOString() });
-    await ledger.append({ user: user.name, role: 'accountant', action: 'loaded demo client', returnId: id });
+    const cloudDocs = docs.map((d) => ({ ...d, docName: isCloud() ? d.maskedName : d.docName }));
+    await saveReturn({ id, owner, status: 'submitted', financialYear: '2025-26', docs: cloudDocs, items, masked, analysis, result, riskScore: analysis.riskScore, createdAt: new Date().toISOString() });
+    await ledger.append({ action: 'loaded demo client', returnId: id }).catch(() => {});
     selectedId = id;
     renderQueue();
   } catch (e) {
@@ -75,8 +82,11 @@ $('#demoClientBtn').addEventListener('click', async () => {
 // ------------------------------------------------------------ detail
 async function renderDetail() {
   const box = $('#detail');
-  const r = selectedId && getReturn(selectedId);
+  let r = null;
+  try { r = selectedId && (await getReturn(selectedId)); } catch (error) { toast(error.message, 'error'); }
   if (!r) { box.innerHTML = '<div class="placeholder"><p>Select a client on the left.</p></div>'; return; }
+  // The accountant normally sees the MASKED lines (the real text stays on the client's device)
+  r.items = r.items || r.masked;
   const t = r.result.totals;
   const fields = editableFields(r.analysis.facts);
   const locked = r.status === 'approved';
@@ -177,8 +187,13 @@ async function override(r, field, button) {
   r.analysis = { ...r.analysis, facts, flags: [...recheck.flags, ...keep], riskScore: recheck.riskScore };
   r.result = result;
   r.riskScore = recheck.riskScore;
-  saveReturn(r);
-  await ledger.append({ user: user.name, role: 'accountant', action: 'override', returnId: r.id, field: field.path, from: field.value, to: newValue, justification, sourceRefs: field.refs });
+  try {
+    await saveReturn(r);
+  } catch (error) {
+    return toast(`Could not save the override: ${error.message}`, 'error');
+  }
+  await ledger.append({ action: 'override', returnId: r.id, field: field.path, from: field.value, to: newValue, justification, sourceRefs: field.refs })
+    .catch((error) => toast(`Saved, but the audit entry failed: ${error.message}`, 'error'));
   toast(`Override saved and recalculated. ${result.totals.refund >= 0 ? 'Refund' : 'Owing'}: ${money(Math.abs(result.totals.refund))}`, 'ok');
   viewerDoc = null;
   renderQueue();
@@ -205,10 +220,14 @@ async function approve(r) {
   const high = r.analysis.flags.filter((f) => f.severity === 'high');
   if (high.length && !confirm(`${high.length} item(s) still need action. Approve anyway?`)) return;
   r.status = 'approved';
-  r.approvedBy = user.name;
+  r.approvedBy = user.name;              // (with an account the database stamps this itself)
   r.approvedAt = new Date().toISOString();
-  saveReturn(r);
-  await ledger.append({ user: user.name, role: 'accountant', action: 'approved and signed off', returnId: r.id, to: r.result.totals.refund });
+  try {
+    await saveReturn(r);
+  } catch (error) {
+    return toast(`Could not approve: ${error.message}`, 'error');
+  }
+  await ledger.append({ action: 'approved and signed off', returnId: r.id, to: r.result.totals.refund }).catch(() => {});
   toast('Return approved and signed off.', 'ok');
   renderQueue();
 }
@@ -221,14 +240,14 @@ function downloadJson(r) {
   a.click();
 }
 
-function printDossier(r) {
-  const entries = ledger.entries().filter((e) => e.returnId === r.id);
-  const w = window.open('', '_blank');
+async function printDossier(r) {
+  const w = window.open('', '_blank'); // open first, so the pop-up blocker allows it
+  const entries = (await ledger.entries().catch(() => [])).filter((e) => e.returnId === r.id);
   w.document.write(`<!doctype html><title>Audit dossier ${escapeHtml(r.id)}</title><style>body{font:13px system-ui;margin:32px;color:#111}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #ccc;padding:6px;text-align:left;vertical-align:top}small{color:#555}h1{margin:0}</style>
     <h1>Luminara Ledger - audit dossier</h1><p>${escapeHtml(r.owner)} · ${escapeHtml(r.id)} · FY ${escapeHtml(r.financialYear)} · status: ${escapeHtml(r.status)}${r.approvedBy ? ` by ${escapeHtml(r.approvedBy)}` : ''}</p>
     <h2>Calculation</h2><table><tr><th>Item</th><th>Amount</th><th>Working</th><th>Basis</th><th>Source lines</th></tr>${r.result.lines.map((l) => `<tr><td>${escapeHtml(l.label)}</td><td>${money(l.amount)}</td><td>${escapeHtml(l.formula)}</td><td>${escapeHtml(l.legalBasis)}</td><td><small>${(l.sourceRefs || []).slice(0, 4).map((id) => escapeHtml(r.items.find((i) => i.id === id)?.text || id)).join('<br>')}</small></td></tr>`).join('')}</table>
     <h2>Flags</h2><ul>${r.analysis.flags.map((f) => `<li>[${f.severity}] ${escapeHtml(f.message)}</li>`).join('')}</ul>
-    <h2>Audit trail</h2><table><tr><th>#</th><th>Time</th><th>User</th><th>Action</th><th>Change</th><th>Reason</th><th>Hash</th></tr>${entries.map((e) => `<tr><td>${e.seq}</td><td>${escapeHtml(e.time)}</td><td>${escapeHtml(e.user)}</td><td>${escapeHtml(e.action)}</td><td>${e.field ? `${escapeHtml(e.field)}: ${escapeHtml(e.from)} → ${escapeHtml(e.to)}` : ''}</td><td>${escapeHtml(e.justification || '')}</td><td><small>${e.hash.slice(0, 16)}...</small></td></tr>`).join('')}</table>
+    <h2>Audit trail</h2><table><tr><th>#</th><th>Time</th><th>User</th><th>Action</th><th>Change</th><th>Reason</th><th>Hash</th></tr>${entries.map((e) => `<tr><td>${e.seq}</td><td>${escapeHtml(e.time)}</td><td>${escapeHtml(e.user)}</td><td>${escapeHtml(e.action)}</td><td>${e.field ? `${escapeHtml(e.field)}: ${escapeHtml(e.from)} → ${escapeHtml(e.to)}` : ''}</td><td>${escapeHtml(e.justification || '')}</td><td><small>${escapeHtml(String(e.hash || '').slice(0, 16))}...</small></td></tr>`).join('')}</table>
     <p><small>This is an estimate prepared with Luminara Ledger for practitioner review. It is not lodged with the ATO.</small></p>`);
   w.document.close();
   w.print();
@@ -236,13 +255,15 @@ function printDossier(r) {
 
 // ------------------------------------------------------------ audit ledger view
 async function renderAudit() {
-  const entries = ledger.entries().slice().reverse();
+  let entries = [];
+  try { entries = (await ledger.entries()).slice().reverse(); } catch (error) { toast(error.message, 'error'); }
   $('#auditRows').innerHTML = entries.map((e) => html`<tr>
       <td>${e.seq}</td><td>${new Date(e.time).toLocaleString('en-AU')}</td><td>${e.user}<small>${e.role}</small></td>
       <td>${e.action}<small>${e.returnId || ''}</small></td>
       <td>${e.field ? `${e.field}: ${e.from} → ${e.to}` : e.to != null ? String(e.to) : ''}</td>
-      <td>${e.justification || ''}</td><td><code title="${e.hash}">${e.hash.slice(0, 10)}…</code></td></tr>`).join('') || '<tr><td colspan="7" class="empty">No entries yet.</td></tr>';
-  const status = await ledger.verifyChain();
+      <td>${e.justification || ''}</td><td><code title="${e.hash || ''}">${String(e.hash || '').slice(0, 10)}…</code></td></tr>`).join('') || '<tr><td colspan="7" class="empty">No entries yet.</td></tr>';
+  const status = await ledger.verifyChain().catch((error) => ({ ok: false, error: error.message }));
+  if (status.error) { $('#chainStatus').textContent = `Could not verify: ${status.error}`; return; }
   $('#chainStatus').innerHTML = status.ok
     ? `<span class="dot ok"></span> Chain intact - ${status.total} entries verified with SHA-256`
     : `<span class="dot bad"></span> Chain BROKEN at entry #${status.brokenAt} - the ledger has been tampered with`;

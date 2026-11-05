@@ -1,17 +1,16 @@
 /**
  * Taxpayer portal (Capstone 1 UI: three panels - Documents | Tax position | Copilot).
  */
-import { requireRole, renderHeader, getSovereignMode, cloudStatus, listReturns, saveReturn, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
+import { requireRole, renderHeader, getSovereignMode, cloudStatus, listReturns, saveReturn, deleteReturn, getLedger, isCloud, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
 import { createMaskingSession, detectUnmaskedPII } from '../engine/redact.js';
 import { saveSecret, loadSecret } from '../engine/vault.js';
-import { createLedger } from '../engine/auditLedger.js';
 import { STAGES, ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
 import { openViewer } from './viewer.js';
 import { createCopilot } from './copilot.js';
 
 const user = requireRole('taxpayer');
 renderHeader('app');
-const ledger = createLedger();
+const ledger = getLedger();
 
 // ------------------------------------------------------------ state
 const state = {
@@ -28,15 +27,26 @@ const state = {
 };
 const masking = createMaskingSession({ knownNames: [user.name] });
 
-// Restore this taxpayer's saved return (if any)
-const existing = listReturns().find((r) => r.owner === user.name);
+// Restore this taxpayer's saved return (if any). With an account it comes from the
+// database (masked); the real text, file names and token map come from this device's vault.
+let existing = null;
+try {
+  const mine = (await listReturns()).filter((r) => (isCloud() ? r.ownerId === user.userId : r.owner === user.name));
+  existing = mine[0] || null;
+} catch (error) {
+  toast(`Could not load your saved return: ${error.message}`, 'error');
+}
 if (existing) {
+  const [tokens, items, names] = await Promise.all(
+    ['tokens', 'items', 'docnames'].map((k) => loadSecret(`${k}:${existing.id}`).catch(() => null))
+  );
+  masking.importMap(tokens || {});
   Object.assign(state, {
     returnId: existing.id, status: existing.status, financialYear: existing.financialYear,
-    docs: existing.docs, items: existing.items, masked: existing.masked,
-    analysis: existing.analysis, result: existing.result
+    docs: existing.docs.map((d) => ({ ...d, docName: names?.[d.docId] || d.docName, stage: 'Ready' })),
+    items: existing.items || items || existing.masked, // real lines if this device has them
+    masked: existing.masked, analysis: existing.analysis, result: existing.result
   });
-  masking.importMap((await loadSecret(`tokens:${existing.id}`)) || {});
 }
 
 const copilot = createCopilot({ root: $('#copilotPanel'), getState: () => state, masking, onUploadRequest: () => $('#fileInput').click() });
@@ -129,8 +139,8 @@ $('#analyseBtn').addEventListener('click', async () => {
     state.result = out.result;
     state.payload = out.payload;
     state.returnId ??= `R-${Date.now().toString(36).toUpperCase()}`;
-    await persist();
-    await ledger.append({ user: user.name, role: 'taxpayer', action: `analysed (${out.analysis.mode})`, returnId: state.returnId, to: out.result.totals.refund });
+    await persist().catch((error) => toast(`Analysed, but saving failed: ${error.message}`, 'error'));
+    await ledger.append({ action: `analysed (${out.analysis.mode})`, returnId: state.returnId, to: out.result.totals.refund }).catch(() => {});
     renderPosition();
     copilot.nudge(state.analysis.flags);
     if (out.cloudError) toast('Cloud AI unavailable - on-device agents were used.', 'warn');
@@ -144,14 +154,20 @@ $('#analyseBtn').addEventListener('click', async () => {
 });
 
 async function persist() {
+  const ready = state.docs.filter((d) => d.stage === 'Ready');
   const record = {
     id: state.returnId, owner: user.name, status: state.status, financialYear: state.financialYear,
-    docs: state.docs.filter((d) => d.stage === 'Ready'), items: state.items, masked: state.masked,
+    // with an account, file names are masked too (a file name can contain your name)
+    docs: ready.map(({ stage, error, ...d }) => ({ ...d, docName: isCloud() ? d.maskedName || d.docName : d.docName })),
+    items: state.items, masked: state.masked,  // "items" (real text) is dropped before upload - see saveReturn()
     analysis: state.analysis, result: state.result, riskScore: state.analysis?.riskScore ?? 0,
     createdAt: existing?.createdAt || new Date().toISOString()
   };
-  saveReturn(record);
-  await saveSecret(`tokens:${state.returnId}`, masking.exportMap()); // token map: encrypted, on this device
+  await saveReturn(record);
+  // Private details stay on THIS device, encrypted with AES-256-GCM
+  await saveSecret(`tokens:${state.returnId}`, masking.exportMap());
+  await saveSecret(`items:${state.returnId}`, state.items);
+  await saveSecret(`docnames:${state.returnId}`, Object.fromEntries(ready.map((d) => [d.docId, d.docName])));
 }
 
 // ------------------------------------------------------------ tax position
@@ -231,8 +247,13 @@ const riskBand = (n) => (n >= 50 ? 3 : n >= 20 ? 2 : 1);
 // ------------------------------------------------------------ submit + privacy
 $('#submitBtn').addEventListener('click', async () => {
   state.status = 'submitted';
-  await persist();
-  await ledger.append({ user: user.name, role: 'taxpayer', action: 'submitted for review', returnId: state.returnId });
+  try {
+    await persist();
+  } catch (error) {
+    state.status = 'draft';
+    return toast(`Could not send: ${error.message}`, 'error');
+  }
+  await ledger.append({ action: 'submitted for review', returnId: state.returnId }).catch(() => {});
   toast('Sent to your accountant. Nothing is lodged until they approve it.', 'ok');
   renderPosition();
   renderDocs();
@@ -264,10 +285,14 @@ $('#privacyBtn').addEventListener('click', () => {
 });
 
 $('#resetBtn').addEventListener('click', async () => {
-  if (!confirm('Start again? This removes your documents and estimate from this browser.')) return;
-  const all = listReturns().filter((r) => r.owner !== user.name);
-  localStorage.setItem('ll.returns', JSON.stringify(all));
-  location.reload();
+  if (state.status !== 'draft') return toast('This return is with your accountant, so it can no longer be deleted.', 'warn');
+  if (!confirm('Start again? This deletes your documents and estimate.')) return;
+  try {
+    if (state.returnId) await deleteReturn(state.returnId);
+    location.reload();
+  } catch (error) {
+    toast(`Could not delete: ${error.message}`, 'error');
+  }
 });
 
 // ------------------------------------------------------------ first render

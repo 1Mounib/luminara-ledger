@@ -268,3 +268,18 @@ dialog header small { display: block; color: var(--muted); font-size: .8rem; }
   .topbar { flex-wrap: wrap; gap: .6rem; }
   .topbar-right { margin-left: 0; flex-wrap: wrap; }
 }
+
+/* ---------- accounts / login ---------- */
+.mode-badge { margin-left: .45rem; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: .1rem .4rem; border-radius: 5px; vertical-align: 1px; }
+.mode-badge.cloud { background: #13261b; color: var(--ok); border: 1px solid #2c5a3e; }
+.mode-badge.local { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line-2); }
+.tabs { display: flex; gap: .25rem; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: .25rem; margin-bottom: 1.1rem; }
+.tabs button { flex: 1; background: transparent; border: 0; color: var(--muted); font: 600 .85rem var(--sans); padding: .5rem .4rem; border-radius: 7px; cursor: pointer; }
+.tabs button.on { background: var(--panel-2); color: var(--gold-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.form-msg { font-size: .85rem; margin: -.3rem 0 .8rem; min-height: 1.2em; }
+.form-msg.err { color: var(--bad); } .form-msg.ok { color: var(--ok); }
+.signin .hint-small { color: var(--muted); font-size: .78rem; margin: -.6rem 0 1rem; }
+.viewer-note { font-size: .78rem; color: var(--muted); border: 1px dashed var(--line-2); border-radius: 8px; padding: .45rem .6rem; margin-bottom: .6rem; }
+.recon-page { position: relative; background: #fbfaf6; color: #222; border-radius: 4px; width: 100%; aspect-ratio: 595 / 842; box-shadow: 0 6px 30px rgba(0,0,0,.5); overflow: hidden; font-family: var(--sans); }
+.recon-line { position: absolute; white-space: nowrap; overflow: hidden; font-size: clamp(7px, 1.25vw, 12px); line-height: 1; }
+.recon-line .tok { background: #e9e2cf; color: #6b5a2a; border-radius: 3px; padding: 0 .2em; font-family: var(--mono); font-size: .9em; }

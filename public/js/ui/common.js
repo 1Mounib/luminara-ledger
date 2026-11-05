@@ -2,10 +2,16 @@
  * Shared helpers for every page: sign-in session, saved returns, settings,
  * money formatting and small UI bits (toasts, header).
  *
- * NOTE (week-1 build): sessions and returns are kept in this browser's
- * localStorage so the demo works with no database. The planned next step is
- * Supabase (Postgres + Auth, Sydney region) - see docs/ROADMAP.md.
+ * Two modes:
+ *  - "cloud": a real account (Supabase Auth). Returns and the audit ledger
+ *    are stored in the Sydney database, protected by Row Level Security.
+ *  - "local": the offline demo (no account). Everything stays in this
+ *    browser's storage - handy for presentations without internet.
+ * Every page uses the same functions below, whatever the mode.
  */
+import { signOutCloud, cloudListReturns, cloudGetReturn, cloudSaveReturn, cloudDeleteReturn, createCloudLedger } from '../cloud.js';
+import { createLedger } from '../engine/auditLedger.js';
+import { IDLE_MINUTES } from '../config.js';
 
 // ------------------------------------------------------------------ session
 const SESSION_KEY = 'll.session';
@@ -13,14 +19,18 @@ const SESSION_KEY = 'll.session';
 export function getSession() {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch { return null; }
 }
-export function signIn(name, role) {
-  const session = { name: name.trim(), role, since: new Date().toISOString() };
+export const isCloud = () => getSession()?.mode === 'cloud';
+
+/** Offline demo sign-in (no password, this browser only). */
+export function signInLocal(name, role) {
+  const session = { mode: 'local', name: name.trim(), role, since: new Date().toISOString() };
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   return session;
 }
-export function signOut() {
+export async function signOut(reason) {
+  await signOutCloud();
   localStorage.removeItem(SESSION_KEY);
-  location.href = '/';
+  location.href = reason ? `/?msg=${encodeURIComponent(reason)}` : '/';
 }
 /** Sends the user to the sign-in page if they are not the right role (FR-001). */
 export function requireRole(role) {
@@ -29,23 +39,67 @@ export function requireRole(role) {
     location.href = `/?next=${encodeURIComponent(location.pathname)}&role=${role}`;
     throw new Error('redirecting');
   }
+  watchIdle();
   return s;
+}
+
+/** Signs out automatically after IDLE_MINUTES without any activity (FR-002). */
+function watchIdle() {
+  const KEY = 'll.lastActive';
+  const touch = () => localStorage.setItem(KEY, String(Date.now()));
+  touch();
+  ['click', 'keydown', 'mousemove', 'touchstart'].forEach((ev) => addEventListener(ev, throttle(touch, 5000), { passive: true }));
+  setInterval(() => {
+    if (Date.now() - Number(localStorage.getItem(KEY) || 0) > IDLE_MINUTES * 60_000) {
+      signOut(`Signed out after ${IDLE_MINUTES} minutes without activity.`);
+    }
+  }, 30_000);
+}
+function throttle(fn, ms) {
+  let last = 0;
+  return () => { const now = Date.now(); if (now - last > ms) { last = now; fn(); } };
 }
 
 // ------------------------------------------------------------------ returns
 const RETURNS_KEY = 'll.returns';
+const localAll = () => { try { return JSON.parse(localStorage.getItem(RETURNS_KEY)) || []; } catch { return []; } };
 
-export function listReturns() {
-  try { return JSON.parse(localStorage.getItem(RETURNS_KEY)) || []; } catch { return []; }
+/** All returns this user may see (cloud: decided by the database's security rules). */
+export async function listReturns() {
+  return isCloud() ? cloudListReturns() : localAll();
 }
-export function getReturn(id) {
-  return listReturns().find((r) => r.id === id) || null;
+export async function getReturn(id) {
+  return isCloud() ? cloudGetReturn(id) : localAll().find((r) => r.id === id) || null;
 }
-export function saveReturn(record) {
-  const all = listReturns().filter((r) => r.id !== record.id);
+/**
+ * Saves a return. In cloud mode the real document text ("items") is NEVER
+ * sent - only masked lines, results and flags.
+ */
+export async function saveReturn(record) {
+  if (isCloud()) {
+    const { items, ...safe } = record; // eslint-disable-line no-unused-vars
+    return cloudSaveReturn(safe);
+  }
+  const all = localAll().filter((r) => r.id !== record.id);
   all.push({ ...record, updatedAt: new Date().toISOString() });
   localStorage.setItem(RETURNS_KEY, JSON.stringify(all));
   return record;
+}
+export async function deleteReturn(id) {
+  if (isCloud()) return cloudDeleteReturn(id);
+  localStorage.setItem(RETURNS_KEY, JSON.stringify(localAll().filter((r) => r.id !== id)));
+}
+
+/** The audit ledger: the database's hash chain in cloud mode, a local one offline. */
+export function getLedger() {
+  if (isCloud()) return createCloudLedger();
+  const local = createLedger(localStorage);
+  const s = getSession();
+  return {
+    append: (entry) => local.append({ user: s?.name, role: s?.role, ...entry }),
+    entries: async () => local.entries(),
+    verifyChain: () => local.verifyChain()
+  };
 }
 
 // ------------------------------------------------------------------ settings
@@ -113,18 +167,20 @@ export function renderHeader(active) {
       ${s?.role === 'accountant' ? raw(`<a href="/accountant.html" class="${active === 'accountant' ? 'on' : ''}">Client queue</a><a href="/accountant.html#audit" class="${active === 'audit' ? 'on' : ''}">Audit ledger</a>`) : ''}
     </nav>
     <div class="topbar-right">
-      <label class="switch" title="Sovereign Mode: nothing leaves this device - the on-device agents do all the work">
+      <label class="switch" title="Sovereign Mode: the AI runs only on this device - no document text is sent to the cloud AI">
         <input type="checkbox" id="sovereignToggle" ${getSovereignMode() ? 'checked' : ''}>
         <span class="track"><span class="thumb"></span></span>
         <span class="switch-label">Sovereign Mode</span>
       </label>
-      ${s ? raw(`<span class="who">${escapeHtml(s.name)} <em>${escapeHtml(s.role)}</em></span><button class="btn ghost small" id="signOutBtn">Sign out</button>`) : ''}
+      ${s ? raw(`<span class="who">${escapeHtml(s.name)} <em>${escapeHtml(s.role)}</em><small class="mode-badge ${s.mode === 'cloud' ? 'cloud' : 'local'}" title="${s.mode === 'cloud' ? 'Signed in with an account - data saved in the Sydney database (masked only)' : 'Offline demo - everything stays in this browser'}">${s.mode === 'cloud' ? 'Account' : 'Offline demo'}</small></span><button class="btn ghost small" id="signOutBtn">Sign out</button>`) : ''}
     </div>`;
   document.body.prepend(header);
-  $('#signOutBtn', header)?.addEventListener('click', signOut);
+  const flash = sessionStorage.getItem('ll.flash');
+  if (flash) { sessionStorage.removeItem('ll.flash'); setTimeout(() => toast(flash, 'warn'), 300); }
+  $('#signOutBtn', header)?.addEventListener('click', () => signOut());
   $('#sovereignToggle', header).addEventListener('change', (e) => {
     setSovereignMode(e.target.checked);
-    toast(e.target.checked ? 'Sovereign Mode on: nothing will leave this device.' : 'Dual-engine mode: only masked data is sent to the cloud AI.', 'info');
+    toast(e.target.checked ? 'Sovereign Mode on: the AI runs only on this device.' : 'Dual-engine mode: only masked data is sent to the cloud AI.', 'info');
     document.dispatchEvent(new CustomEvent('sovereignchange', { detail: e.target.checked }));
   });
 }

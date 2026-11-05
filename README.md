@@ -16,7 +16,9 @@ NIT3004 IT Capstone Project 2, Victoria University · Luminara Digital team.
 5. **The deterministic tax engine** does all the maths: the 2025-26 brackets, Medicare levy, LITO, the 70c/hour fixed rate, and decline in value.
 6. **The accountant** reviews the result side by side with the source documents, overrides values (a justification is required), and signs off. Every action goes into a **hash-chained audit ledger**.
 
-**Sovereign Mode** (the toggle in the top bar) switches off all network calls. On-device agents then do everything.
+**Accounts:** taxpayers and accountants sign in with real accounts (Supabase Auth, Sydney region). Row Level Security decides who sees what: taxpayers see only their own return, and accountants see the practice's queue. Becoming an accountant needs a practice code. The database stores masked data only. The original files and the real names, TFN and so on stay encrypted on the taxpayer's device. There is also an **Offline demo** tab (no account, this browser only).
+
+**Sovereign Mode** (the toggle in the top bar) keeps all AI on the device: no document text goes to the cloud AI.
 
 ## Project layout
 
@@ -42,6 +44,10 @@ api/                     Engine B: Vercel serverless functions
   copilot.js             POST: plain-English explanations
   health.js              GET: is the cloud AI configured?
 lib/llm.js               talks to Gemini or Groq (or any OpenAI-compatible API, e.g. Ollama)
+supabase/schema.sql      the database: tables, security rules, hash-chained audit log
+supabase/test-security.sh 17 attack tests for the security rules (run on a local Postgres)
+public/js/cloud.js       sign-in and database calls (plain fetch, no library)
+public/js/config.js      Supabase URL + publishable key (public by design)
 tests/                   automated tests (node --test)
 scripts/                 dev server + sample generator
 docs/                    deployment guide, AI-use log, roadmap, requirements trace
@@ -64,7 +70,7 @@ npm install      (once - installs pdf.js for the document test)
 npm test
 ```
 
-There are 22 tests. They cover the tax engine against hand-worked ATO examples, PII masking, the full sample pipeline (which must give exactly $806.68 in deductions and a $400.24 refund), audit-ledger tamper detection, and the hallucination guard.
+There are 22 tests, plus 17 database security tests in `supabase/test-security.sh`. They cover the tax engine against hand-worked ATO examples, PII masking, the full sample pipeline (which must give exactly $806.68 in deductions and a $400.24 refund), audit-ledger tamper detection, and the hallucination guard.
 
 ## Deploy
 

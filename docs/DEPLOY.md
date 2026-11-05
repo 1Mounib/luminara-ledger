@@ -25,6 +25,23 @@ The site works now, using the on-device agents.
 4. Check it works by opening `https://<your-site>/api/health?ping=1`. It should show `"ping": {"ok": true, ...}`.
 5. In the app, the status line in panel 1 should say *"Dual-engine - masked data to Google Gemini"*.
 
+## 4. Turn on accounts and the shared database (Supabase, free)
+1. Create a free project at **supabase.com** with the region set to **Sydney**.
+2. Put its **Project URL** and **publishable key** in `public/js/config.js`. These are public by design; never put the secret key there.
+3. In Supabase, open **SQL Editor**, click **New query**, paste the whole of `supabase/schema.sql` and click **Run**. It should say *Success. No rows returned*.
+4. In Supabase, go to **Authentication**, then **Sign In / Providers**, then **Email**. Turn **Confirm email** **off** and click **Save**. Supabase's free email service only delivers to project members, so confirmation emails wouldn't reach other users.
+5. Create the accounts on the website:
+   - taxpayers choose **Taxpayer**;
+   - accountants choose **Accountant** and enter the **practice code** (`LUMINARA-2026` unless you changed it).
+   To change the code, run `update private.settings set value = 'NEW-CODE' where key = 'practice_code';` in the SQL Editor.
+
+What is stored where:
+| Where | What |
+|---|---|
+| Taxpayer's own device (encrypted, AES-256-GCM) | original files, the real text of each line, the PII token map |
+| Supabase (Sydney), protected by Row Level Security | masked lines and their positions, the calculated result, flags, the audit log |
+| Google Gemini | masked text only, for each analysis and each Copilot question |
+
 ## Updating the site
 Every change pushed to GitHub redeploys automatically.
 
