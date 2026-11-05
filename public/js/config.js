@@ -17,4 +17,4 @@ export const IDLE_MINUTES = 30;
  * identifies the website to Google; it is not a secret). Leave empty to hide
  * the feature. Created in Google Cloud -> Google Auth Platform -> Clients.
  */
-export const GOOGLE_CLIENT_ID = '';
+export const GOOGLE_CLIENT_ID = '1016441196363-j3et42so1jgbaasfacuktrjib4f5bdcp.apps.googleusercontent.com';
