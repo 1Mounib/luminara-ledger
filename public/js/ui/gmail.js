@@ -44,7 +44,7 @@ async function getAccessToken() {
       callback: (r) => (r.error ? reject(new Error(r.error_description || r.error)) : resolve(r.access_token)),
       error_callback: (e) => reject(new Error(e.type === 'popup_closed' ? 'The Google window was closed.' : e.message || e.type))
     });
-    client.requestAccessToken();
+    client.requestAccessToken({ prompt: 'select_account' }); // always let the user pick which Google account
   });
 }
 
@@ -52,7 +52,14 @@ async function gmailGet(token, path) {
   const res = await fetch(`${API}/${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error?.message || `Gmail returned ${res.status}`);
+    const msg = body.error?.message || `Gmail returned ${res.status}`;
+    if (/mail service not enabled/i.test(msg)) {
+      throw new Error('the Google account you chose has no Gmail inbox (for example, a Google account made with an Outlook address). Click the button again and choose an @gmail.com account.');
+    }
+    if (res.status === 403 && /insufficient|scope|permission/i.test(msg)) {
+      throw new Error('Gmail permission was not given. Click the button again and tick "View your email messages".');
+    }
+    throw new Error(msg);
   }
   return res.json();
 }
