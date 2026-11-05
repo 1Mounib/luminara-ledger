@@ -122,10 +122,16 @@ async function renderDetail() {
       </div>
     </div>`;
 
-  // Side-by-side: hovering a field highlights its source in the document
+  // Side-by-side: resting the mouse on a field (or clicking / tabbing to it)
+  // highlights its source in the document. A short pause stops the document
+  // switching back and forth while the mouse just passes over rows.
+  let hoverTimer;
   $$('.fields tr', box).forEach((tr) => {
-    tr.addEventListener('mouseenter', () => showRefs(r, tr.dataset.refs ? tr.dataset.refs.split(',') : []));
-    tr.addEventListener('focusin', () => showRefs(r, tr.dataset.refs ? tr.dataset.refs.split(',') : []));
+    const refs = () => (tr.dataset.refs ? tr.dataset.refs.split(',') : []);
+    tr.addEventListener('mouseenter', () => { clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showRefs(r, refs()), 250); });
+    tr.addEventListener('mouseleave', () => clearTimeout(hoverTimer));
+    tr.addEventListener('click', () => { clearTimeout(hoverTimer); showRefs(r, refs()); });
+    tr.addEventListener('focusin', () => { clearTimeout(hoverTimer); showRefs(r, refs()); });
   });
   $$('.doc-tabs button', box).forEach((b) => b.addEventListener('click', () => showDoc(r, b.dataset.doc, [])));
   $$('[data-save]', box).forEach((b) => b.addEventListener('click', () => override(r, fields[Number(b.dataset.save)], b)));

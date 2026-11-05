@@ -106,12 +106,17 @@ function highlight(container, doc, items, wanted, page) {
   scrollIfHidden(surface.querySelector('.hl-box'), container);
 }
 
-/** Scrolls only when the highlight is out of view, so the page doesn't jump around. */
+/**
+ * Scrolls ONLY the document box (never the whole page) and only when the
+ * highlight is out of view, so nothing jumps around.
+ */
 function scrollIfHidden(el, container) {
   if (!el) return;
+  const pane = container.closest('.doc-pane, .viewer-body') || container;
   const box = el.getBoundingClientRect();
-  const view = (container.closest('.doc-pane, .viewer-body') || container).getBoundingClientRect();
-  if (box.top < view.top || box.bottom > view.bottom) el.scrollIntoView({ block: 'center' });
+  const view = pane.getBoundingClientRect();
+  if (box.top >= view.top && box.bottom <= view.bottom) return;
+  pane.scrollTop += box.top - view.top - (view.height - box.height) / 2;
 }
 
 const MASKED_NOTE = '<p class="viewer-note">The original file stays on the client\'s own device. This is the <b>masked copy</b> rebuilt from the database: private details appear as tokens such as &lt;PII_PERSON_1&gt;.</p>';
