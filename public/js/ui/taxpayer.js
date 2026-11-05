@@ -7,6 +7,7 @@ import { saveSecret, loadSecret } from '../engine/vault.js';
 import { STAGES, ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
 import { openViewer } from './viewer.js';
 import { createCopilot } from './copilot.js';
+import { gmailConfigured, importFromGmail } from './gmail.js';
 
 const user = requireRole('taxpayer');
 renderHeader('app');
@@ -73,6 +74,31 @@ const drop = $('#dropzone');
 drop.addEventListener('drop', (e) => addFiles([...e.dataTransfer.files]));
 $('#loadSamples').addEventListener('click', async () => addFiles(await sampleFiles(UC1_SAMPLES)));
 $('#loadOcr').addEventListener('click', async () => addFiles(await sampleFiles(['laptop-stand-receipt.png'])));
+
+// Import from Gmail (only shown when a Google Client ID is set in config.js)
+if (gmailConfigured()) {
+  const btn = $('#gmailBtn');
+  const status = $('#gmailStatus');
+  btn.hidden = false;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    status.hidden = false;
+    try {
+      const files = await importFromGmail(state.financialYear, (msg) => { status.textContent = msg; });
+      if (files.length) {
+        status.textContent = `Importing ${files.length} attachment(s) from Gmail...`;
+        await addFiles(files);
+        status.textContent = `Imported ${files.length} attachment(s) from Gmail. Gmail access has been given back.`;
+      } else if (!status.textContent.startsWith('No matching')) {
+        status.textContent = 'Nothing imported.';
+      }
+    } catch (error) {
+      status.textContent = `Gmail import stopped: ${error.message}`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
 
 async function addFiles(files) {
   if (state.status !== 'draft') { toast('This return has already been sent to your accountant.', 'warn'); return; }

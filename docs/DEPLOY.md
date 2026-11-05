@@ -42,6 +42,16 @@ What is stored where:
 | Supabase (Sydney), protected by Row Level Security | masked lines and their positions, the calculated result, flags, the audit log |
 | Google Gemini | masked text only, for each analysis and each Copilot question |
 
+## 5. Turn on "Import from Gmail" (Google Cloud, free)
+1. At **console.cloud.google.com**, create a project, then search for **Gmail API** and click **Enable**.
+2. Open **Google Auth Platform** and click **Get started**. Use **External** for the audience. Under **Audience**, add **Test users**: only these people can use the import while the app is in testing.
+3. Under **Data Access**, add the scope `https://www.googleapis.com/auth/gmail.readonly`.
+4. Under **Clients**, create a **Web application** client with the authorised JavaScript origin `https://luminara-ledger.vercel.app`.
+5. Put the **Client ID** (public) in `public/js/config.js` as `GOOGLE_CLIENT_ID`. No client secret is needed.
+
+How it works: Google's pop-up asks for read-only access. The browser then searches Gmail directly and downloads only the attachments the user ticks, and the access is revoked straight after. Emails never pass through our server, the database or the AI.
+Limitation: Gmail is a "restricted" scope. In testing mode it allows up to 100 listed users, who see a "Google hasn't verified this app" warning. Public release would need Google's verification and a security assessment.
+
 ## Updating the site
 Every change pushed to GitHub redeploys automatically.
 

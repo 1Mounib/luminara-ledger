@@ -6,7 +6,7 @@ Status: ✅ done · 🟡 partly done (with justification) · ⏳ planned (see RO
 |---|---|---|---|
 | FR-001 | Roles: taxpayer, accountant, admin | ✅ | Supabase Auth accounts. The role is decided by the database (an accountant needs the practice code) and enforced by Row Level Security (`supabase/schema.sql`, 17 attack tests). An admin role exists in the schema; there is no admin screen yet. |
 | FR-002 | JWT sessions, lockout, idle lock | 🟡 | JWT sessions (Supabase) with automatic refresh, and sign-out after 30 minutes idle. Supabase rate-limits failed logins; there's no custom 5-attempt lockout. |
-| FR-003 | PDF, image, CSV ingestion | ✅ | `extract.js`. XLSX is not supported yet. |
+| FR-003 | PDF, image, CSV ingestion | ✅ | `extract.js`. XLSX is not supported yet. **New beyond Capstone 1:** import attachments from Gmail (read-only, user-selected, browser-direct, access revoked after; `gmail.js`). |
 | FR-004 | UUID, SHA-256, encrypted storage, queue | ✅ | SHA-256 fingerprint as the document ID with duplicate detection, plus an AES-256-GCM encrypted file vault (`vault.js`). |
 | FR-005 | Live status: ingest → parse → mask → swarm → ready | ✅ | Pipeline chips in panel 1. |
 | FR-006 | Binarize, deskew | 🟡 | Tesseract does basic pre-processing. There's no custom deskew. |

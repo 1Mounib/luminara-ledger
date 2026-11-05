@@ -283,3 +283,10 @@ dialog header small { display: block; color: var(--muted); font-size: .8rem; }
 .recon-page { position: relative; background: #fbfaf6; color: #222; border-radius: 4px; width: 100%; aspect-ratio: 595 / 842; box-shadow: 0 6px 30px rgba(0,0,0,.5); overflow: hidden; font-family: var(--sans); }
 .recon-line { position: absolute; white-space: nowrap; overflow: hidden; font-size: clamp(7px, 1.25vw, 12px); line-height: 1; }
 .recon-line .tok { background: #e9e2cf; color: #6b5a2a; border-radius: 3px; padding: 0 .2em; font-family: var(--mono); font-size: .9em; }
+.gmail-list { display: grid; gap: .6rem; }
+.gm-mail { border: 1px solid var(--line); border-radius: 9px; padding: .6rem .75rem; background: var(--bg-2); }
+.gm-head b { display: block; font-size: .9rem; font-weight: 600; }
+.gm-head small { color: var(--muted); font-size: .75rem; }
+.gm-att { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; font-size: .84rem; cursor: pointer; }
+.gm-att input { flex: none; width: auto; accent-color: var(--gold); }
+.gm-att small { color: var(--muted); }

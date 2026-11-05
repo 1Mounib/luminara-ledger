@@ -11,3 +11,10 @@ export const SUPABASE_KEY = 'sb_publishable_YyWVYgaAcLXiN4Z0xVcnAg_jln7p31m';
 
 /** Sign out automatically after this many minutes without activity (FR-002). */
 export const IDLE_MINUTES = 30;
+
+/**
+ * Google OAuth Client ID for "Import from Gmail" (public by design - it only
+ * identifies the website to Google; it is not a secret). Leave empty to hide
+ * the feature. Created in Google Cloud -> Google Auth Platform -> Clients.
+ */
+export const GOOGLE_CLIENT_ID = '';

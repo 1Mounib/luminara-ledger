@@ -5,6 +5,7 @@ VU requires AI-generated content to be flagged through reflective process docume
 | Date | Tool | What the AI did | What the team did / checked |
 |---|---|---|---|
 | 2 Nov 2026 | Claude (Anthropic) | Proposed the architecture: static site plus Vercel functions, Engine A in the browser, Groq for Engine B. Wrote the first version of all code in `public/`, `api/`, `lib/`, `tests/`, the sample documents and these docs. | *Team to fill in:* reviewed each module, ran `npm test`, checked tax figures against the ATO website, tested on our own laptops. |
+| 2-5 Nov 2026 | Claude (Anthropic) | Switched the cloud AI to Gemini after Groq blocked sign-ups; added accounts and the Supabase database with security rules and 17 attack tests; added Gmail import; fixed the viewer flicker. | *Team to fill in:* created the Supabase and Google Cloud projects, ran the SQL, tested sign-up for both roles on the live site. |
 | | | | |
 
 ## Things the team verified by hand (fill in)

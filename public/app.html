@@ -26,7 +26,9 @@
       <div class="sample-row">
         <button class="btn ghost small" id="loadSamples" type="button">Load sample documents</button>
         <button class="btn ghost small" id="loadOcr" type="button">Add receipt photo (OCR)</button>
+        <button class="btn ghost small" id="gmailBtn" type="button" hidden title="Read-only: finds receipts, bills and statements in your Gmail. Only what you tick is imported.">&#9993; Import from Gmail</button>
       </div>
+      <p class="engine-status" id="gmailStatus" hidden></p>
 
       <ul class="doc-list" id="docList"></ul>
       <ol class="pipeline" id="pipeline"></ol>
