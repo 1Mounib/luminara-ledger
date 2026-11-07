@@ -170,8 +170,8 @@ function gmailDialog(token, financialYear, onStatus) {
         <form class="gm-search">
           <div class="gm-label">Emails sent</div>
           <div class="gm-presets" role="group" aria-label="Date range">
-            <button type="button" data-range="fy">This financial year (FY ${y}-${String(y + 1).slice(2)})</button>
-            <button type="button" data-range="lastfy">Last financial year (FY ${y - 1}-${String(y).slice(2)})</button>
+            <button type="button" data-range="fy" title="Emails sent 1 Jul ${y} - 30 Jun ${y + 1}">Tax year you're claiming: FY ${y}-${String(y + 1).slice(2)}</button>
+            <button type="button" data-range="lastfy" title="Emails sent 1 Jul ${y - 1} - 30 Jun ${y}">FY ${y - 1}-${String(y).slice(2)}</button>
             <button type="button" data-range="12m">Last 12 months</button>
             <button type="button" data-range="any">Any time</button>
           </div>
