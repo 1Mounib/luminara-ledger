@@ -133,6 +133,49 @@ export async function extractImage(file, Tesseract, doc, onProgress) {
   return { items, pages: 1, averageConfidence: avg };
 }
 
+/**
+ * Reads a PDF that has NO text layer (a scan, a photo saved as PDF, or a
+ * "Print to PDF" that turned text into pictures). Each page is drawn onto a
+ * canvas in the browser and read with Tesseract OCR. Nothing is uploaded.
+ * @param {number} maxPages only the first pages are read, to keep it quick
+ */
+export async function extractScannedPdf(data, pdfjsLib, Tesseract, doc, onProgress, maxPages = 5) {
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(data.slice(0)), isEvalSupported: false }).promise;
+  const pages = Math.min(pdf.numPages, maxPages);
+  let pageNo = 0;
+  const worker = await Tesseract.createWorker('eng', 1, {
+    logger: (m) => onProgress && m.status === 'recognizing text' && onProgress(Math.round(((pageNo - 1 + m.progress) / pages) * 100))
+  });
+  const items = [];
+  try {
+    for (pageNo = 1; pageNo <= pages; pageNo++) {
+      const page = await pdf.getPage(pageNo);
+      const viewport = page.getViewport({ scale: 2 }); // bigger = sharper text for OCR
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width);
+      canvas.height = Math.round(viewport.height);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height); // OCR needs a white page, not a transparent one
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const { data: result } = await worker.recognize(canvas);
+      (result.lines || []).filter((l) => l.text.trim()).forEach((line, i) => {
+        items.push({
+          id: `${doc.docId}:p${pageNo}:l${i + 1}`,
+          docId: doc.docId, docName: doc.docName, page: pageNo,
+          text: line.text.trim(),
+          bbox: normalise([line.bbox.x0, line.bbox.y0, line.bbox.x1, line.bbox.y1], canvas.width, canvas.height),
+          confidence: Math.round(line.confidence)
+        });
+      });
+    }
+  } finally {
+    await worker.terminate();
+  }
+  const avg = items.length ? Math.round(items.reduce((s, i) => s + i.confidence, 0) / items.length) : 0;
+  return { items, pages: pdf.numPages, averageConfidence: avg, ocr: true };
+}
+
 function normalise([x0, y0, x1, y1], width, height) {
   const clamp = (v) => Math.max(0, Math.min(1000, Math.round(v)));
   return [clamp((x0 / width) * 1000), clamp((y0 / height) * 1000), clamp((x1 / width) * 1000), clamp((y1 / height) * 1000)];

@@ -307,3 +307,4 @@ dialog header small { display: block; color: var(--muted); font-size: .8rem; }
 .return-picker-row { display: grid; gap: .25rem; margin: .3rem 0 .5rem; font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .return-picker-row:has(select[hidden]) { display: none; }
 .return-picker-row select { text-transform: none; letter-spacing: 0; font-size: .85rem; color: var(--text); padding: .45rem .6rem; }
+.warn-text { color: var(--warn); font-weight: 600; }

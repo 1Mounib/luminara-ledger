@@ -130,7 +130,8 @@ if (gmailConfigured()) {
 
 async function addFiles(files) {
   if (state.status !== 'draft') { toast('This return has already been sent to your accountant.', 'warn'); return; }
-  const known = new Set(state.docs.map((d) => d.docId));
+  // A document that previously gave "no text found" may be re-added so it can be read again (e.g. with OCR)
+  const known = new Set(state.docs.filter((d) => d.lines !== 0).map((d) => d.docId));
   for (const file of files) {
     const placeholder = { docId: `tmp-${Math.random()}`, docName: file.name, stage: 'Ingesting' };
     state.docs.push(placeholder);
@@ -140,6 +141,10 @@ async function addFiles(files) {
       state.docs.splice(state.docs.indexOf(placeholder), 1);
       if (out.duplicate) { toast(`"${file.name}" was already uploaded (same SHA-256 fingerprint).`, 'warn'); continue; }
       known.add(out.doc.docId);
+      // replace an earlier unreadable copy of the same file
+      state.docs = state.docs.filter((d) => d.docId !== out.doc.docId);
+      state.items = state.items.filter((i) => i.docId !== out.doc.docId);
+      state.masked = state.masked.filter((i) => i.docId !== out.doc.docId);
       state.docs.push({ ...out.doc, stage: 'Ready' });
       state.items.push(...out.items);
       state.masked.push(...out.masked);
@@ -163,7 +168,7 @@ function renderDocs() {
       <div class="doc-main">
         <b title="${d.docName}">${d.docName}</b>
         <small>${d.stage === 'Ready'
-          ? raw(`${d.lines} lines read · <span class="mask-count">${d.maskedCount} private details masked</span>${d.kind === 'image' ? ` · OCR confidence ${d.confidence}%` : ''}`)
+          ? raw(`${d.lines} lines read · <span class="mask-count">${d.maskedCount} private details masked</span>${d.ocr ? ` · read with OCR, ${d.confidence}% confidence` : ''}${d.lines === 0 ? ' · <b class="warn-text">no text found</b>' : ''}`)
           : d.error || d.stage}</small>
       </div>
       ${d.stage === 'Ready' ? raw(`<button class="btn ghost small" data-view="${escapeHtml(d.docId)}">View</button>`) : ''}

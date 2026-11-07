@@ -7,7 +7,7 @@
  *   5. Reconcile- check the AI against the source, merge
  *   6. Compute  - deterministic tax engine
  */
-import { fingerprint, extractPdf, extractCsv, extractImage } from '../engine/extract.js';
+import { fingerprint, extractPdf, extractScannedPdf, extractCsv, extractImage } from '../engine/extract.js';
 import { runLocalSwarm } from '../engine/localAgents.js';
 import { reconcile } from '../engine/coordinator.js';
 import { toEngineInput } from '../engine/facts.js';
@@ -59,7 +59,14 @@ export async function ingestFile(file, masking, knownIds, onStage = () => {}) {
   onStage('Reading layout');
   const meta = { docId, docName: file.name };
   let extracted;
-  if (kind === 'pdf') extracted = await extractPdf(data, pdfjsLib, meta);
+  if (kind === 'pdf') {
+    extracted = await extractPdf(data, pdfjsLib, meta);
+    if (!extracted.items.length) {
+      // No text layer (scanned / printed-to-PDF): read the pages with OCR instead
+      onStage('Reading layout', 'no text found - reading with OCR');
+      extracted = await extractScannedPdf(data, pdfjsLib, await loadTesseract(), meta, (pct) => onStage('Reading layout', `OCR ${pct}%`));
+    }
+  }
   else if (kind === 'csv') extracted = extractCsv(new TextDecoder().decode(data), meta);
   else extracted = await extractImage(file, await loadTesseract(), meta, (pct) => onStage('Reading layout', `OCR ${pct}%`));
 
@@ -80,7 +87,7 @@ export async function ingestFile(file, masking, knownIds, onStage = () => {}) {
 
   const confidence = extracted.averageConfidence ?? 100;
   return {
-    doc: { docId, docName: file.name, maskedName, kind, lines: extracted.items.length, maskedCount, confidence, lowConfidence: confidence < 85 },
+    doc: { docId, docName: file.name, maskedName, kind, ocr: Boolean(extracted.ocr) || kind === 'image', lines: extracted.items.length, maskedCount, confidence, lowConfidence: confidence < 85 },
     items: extracted.items,   // real text + positions: stays on this device
     masked                    // masked text: the only version that may be sent
   };
