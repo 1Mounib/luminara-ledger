@@ -311,7 +311,17 @@ $('#privacyBtn').addEventListener('click', () => {
 });
 
 $('#resetBtn').addEventListener('click', async () => {
-  if (state.status !== 'draft') return toast('This return is with your accountant, so it can no longer be deleted.', 'warn');
+  if (state.status !== 'draft') {
+    // A submitted return can't be deleted (it belongs to the accountant's queue now),
+    // so start a brand-new, separate return instead.
+    if (!confirm('Your submitted return stays with your accountant. Start a new, separate return?')) return;
+    Object.assign(state, { returnId: null, status: 'draft', docs: [], items: [], masked: [], analysis: null, result: null, payload: null });
+    existing = null;
+    renderDocs();
+    setPipeline(null);
+    renderPosition();
+    return toast('New return started. Add documents or import from Gmail.', 'ok');
+  }
   if (!confirm('Start again? This deletes your documents and estimate.')) return;
   try {
     if (state.returnId) await deleteReturn(state.returnId);
