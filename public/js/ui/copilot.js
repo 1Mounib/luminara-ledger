@@ -58,12 +58,15 @@ export function createCopilot({ root, getState, masking, onUploadRequest }) {
 
   /** Active capture: after analysis, ask for anything missing. */
   function nudge(flags) {
+    // Old "I need one more thing" messages are out of date after a new analysis
+    log.querySelectorAll('.msg.nudge').forEach((m) => m.remove());
     const missing = flags.filter((f) => ['MISSING_WFH_RECORD', 'MISSING_INCOME', 'PHI_MISSING', 'ASSET_NO_DATE'].includes(f.code));
     if (!missing.length) {
-      add('assistant', 'Your documents are analysed. Ask me anything about the result, for example how the chair was worked out.');
+      add('assistant', 'Your documents are analysed. Ask me anything about the result, for example how the chair was worked out.').classList.add('nudge');
       return;
     }
     const el = add('assistant', `I need one more thing:\n${missing.map((f) => `- ${f.message}`).join('\n')}`, '<button class="btn gold small upload-nudge">Upload a document</button>');
+    el.classList.add('nudge');
     el.querySelector('.upload-nudge').addEventListener('click', onUploadRequest);
   }
 
