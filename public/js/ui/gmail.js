@@ -64,16 +64,46 @@ async function gmailGet(token, path) {
   return res.json();
 }
 
-/** "2025-26" -> Gmail search for that year (plus 3 months for late statements). */
-export function searchQuery(financialYear) {
-  const start = Number(financialYear.slice(0, 4));
+const TAX_WORDS = '(invoice OR receipt OR statement OR bill OR "tax invoice" OR "income statement" OR payslip OR timesheet OR order)';
+
+/**
+ * "2025-07-01" -> seconds since 1970 at local midnight. Gmail accepts these
+ * exact times in after:/before:, so the range follows the user's own timezone
+ * (plain dates would be read in US Pacific time).
+ */
+const localMidnight = (iso) => Math.floor(new Date(`${iso}T00:00:00`).getTime() / 1000);
+/** Gmail's "before:" is exclusive, so stop at the midnight AFTER the "To" date. */
+function dayAfter(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  return localIso(d);
+}
+const pad = (n) => String(n).padStart(2, '0');
+const localIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+/**
+ * Builds the Gmail search.
+ * @param {{from?:string, to?:string, onlyTax?:boolean, extra?:string}} o  dates as YYYY-MM-DD
+ */
+export function searchQuery({ from = '', to = '', onlyTax = true, extra = '' } = {}) {
   return [
     'has:attachment',
     '(filename:pdf OR filename:csv OR filename:jpg OR filename:jpeg OR filename:png)',
-    '(invoice OR receipt OR statement OR bill OR "tax invoice" OR "income statement" OR payslip OR timesheet OR order)',
-    `after:${start}/07/01`,
-    `before:${start + 1}/09/30`
-  ].join(' ');
+    onlyTax ? TAX_WORDS : '',
+    extra.trim().replace(/[()]/g, ''),
+    from ? `after:${localMidnight(from)}` : '',
+    to ? `before:${localMidnight(dayAfter(to))}` : ''
+  ].filter(Boolean).join(' ');
+}
+
+/** Date ranges for the quick buttons. "2025-26" = 1 Jul 2025 to 30 Jun 2026. */
+export function presetRange(name, financialYear, today = new Date()) {
+  const y = Number(financialYear.slice(0, 4));
+  const iso = localIso;
+  if (name === 'fy') return { from: `${y}-07-01`, to: `${y + 1}-06-30` };
+  if (name === 'lastfy') return { from: `${y - 1}-07-01`, to: `${y}-06-30` };
+  if (name === '12m') { const f = new Date(today); f.setFullYear(f.getFullYear() - 1); return { from: iso(f), to: iso(today) }; }
+  return { from: '', to: '' }; // any time
 }
 
 /** Finds every attachment in an email (attachments can be nested in parts). */
@@ -102,24 +132,9 @@ export async function importFromGmail(financialYear, onStatus = () => {}) {
   onStatus('Waiting for Google...');
   const token = await getAccessToken();
   try {
-    onStatus('Searching your Gmail...');
-    const list = await gmailGet(token, `messages?maxResults=30&q=${encodeURIComponent(searchQuery(financialYear))}`);
-    const emails = [];
-    for (const { id } of list.messages || []) {
-      const msg = await gmailGet(token, `messages/${id}?format=full`);
-      const header = (name) => msg.payload?.headers?.find((h) => h.name.toLowerCase() === name)?.value || '';
-      const attachments = findAttachments(msg.payload).filter((a) => a.size < 15_000_000);
-      if (attachments.length) emails.push({ id, from: header('from'), subject: header('subject'), date: header('date'), attachments });
-    }
-    if (!emails.length) { onStatus('No matching emails with attachments were found.'); return []; }
-
-    const chosen = await pickAttachments(emails, financialYear);
-    const files = [];
-    for (const [i, c] of chosen.entries()) {
-      onStatus(`Downloading ${i + 1} of ${chosen.length}: ${c.filename}`);
-      const att = await gmailGet(token, `messages/${c.messageId}/attachments/${c.attachmentId}`);
-      files.push(new File([base64UrlToBytes(att.data)], c.filename, { type: c.mimeType }));
-    }
+    onStatus('Choose what to search for in the Gmail window.');
+    const files = await gmailDialog(token, financialYear, onStatus);
+    if (!files.length) onStatus('Nothing imported.');
     return files;
   } finally {
     // Give the access back straight away - the website keeps no Gmail access
@@ -127,28 +142,134 @@ export async function importFromGmail(financialYear, onStatus = () => {}) {
   }
 }
 
-/** Shows the emails found, with a tick box per attachment. */
-function pickAttachments(emails, financialYear) {
+/** Searches Gmail and returns emails that have usable attachments. */
+async function searchEmails(token, query) {
+  const list = await gmailGet(token, `messages?maxResults=50&q=${encodeURIComponent(query)}`);
+  const ids = (list.messages || []).map((m) => m.id);
+  const emails = [];
+  for (let i = 0; i < ids.length; i += 10) { // 10 at a time, so it's quick but polite
+    const batch = await Promise.all(ids.slice(i, i + 10).map((id) => gmailGet(token, `messages/${id}?format=full`)));
+    for (const msg of batch) {
+      const header = (name) => msg.payload?.headers?.find((h) => h.name.toLowerCase() === name)?.value || '';
+      const attachments = findAttachments(msg.payload).filter((a) => a.size < 15_000_000);
+      if (attachments.length) emails.push({ id: msg.id, from: header('from'), subject: header('subject'), date: header('date'), attachments });
+    }
+  }
+  return emails;
+}
+
+/** The Gmail window: search options, results with tick boxes, import. */
+function gmailDialog(token, financialYear, onStatus) {
   return new Promise((resolve) => {
+    const y = Number(financialYear.slice(0, 4));
     const d = document.createElement('dialog');
     d.className = 'viewer-dialog';
-    d.innerHTML = `<form method="dialog">
-      <header><div><b>Choose what to import from Gmail</b><small>${emails.length} email(s) with attachments, FY ${escapeHtml(financialYear)}. Only what you tick is downloaded, straight into this browser.</small></div></header>
-      <div class="viewer-body gmail-list">
-        ${emails.map((e) => `<div class="gm-mail">
-          <div class="gm-head"><b>${escapeHtml(e.subject || '(no subject)')}</b><small>${escapeHtml(e.from)} · ${escapeHtml(new Date(e.date).toLocaleDateString('en-AU'))}</small></div>
-          ${e.attachments.map((a) => `<label class="gm-att"><input type="checkbox" checked data-msg="${escapeHtml(e.id)}" data-att="${escapeHtml(a.attachmentId)}" data-name="${escapeHtml(a.filename)}" data-type="${escapeHtml(a.mimeType)}"> ${escapeHtml(a.filename)} <small>${Math.round(a.size / 1024)} KB</small></label>`).join('')}
-        </div>`).join('')}
-        <div class="row-end"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn gold" value="ok">Import selected</button></div>
-      </div></form>`;
+    d.innerHTML = `
+      <header><div><b>Import from Gmail</b><small>Read-only. Gmail is searched straight from this browser; only what you tick is downloaded.</small></div><button class="btn ghost small" data-cancel>Cancel</button></header>
+      <div class="viewer-body">
+        <form class="gm-search">
+          <div class="gm-label">Emails sent</div>
+          <div class="gm-presets" role="group" aria-label="Date range">
+            <button type="button" data-range="fy">This financial year (FY ${y}-${String(y + 1).slice(2)})</button>
+            <button type="button" data-range="lastfy">Last financial year (FY ${y - 1}-${String(y).slice(2)})</button>
+            <button type="button" data-range="12m">Last 12 months</button>
+            <button type="button" data-range="any">Any time</button>
+          </div>
+          <div class="gm-dates">
+            <label>From <input type="date" name="from"></label>
+            <label>To <input type="date" name="to"></label>
+          </div>
+          <label class="gm-check"><input type="checkbox" name="onlyTax" checked> Only emails that look like invoices, receipts, bills or statements</label>
+          <label class="gm-extra">Extra search words (optional)<input name="extra" placeholder="e.g. Officeworks, or a sender's name"></label>
+          <button class="btn gold" type="submit">Search Gmail</button>
+        </form>
+        <p class="gm-status" aria-live="polite"></p>
+        <div class="gm-results gmail-list"></div>
+        <div class="row-end gm-actions" hidden>
+          <button class="btn ghost small" type="button" data-all>Select all</button>
+          <button class="btn ghost small" type="button" data-none>Select none</button>
+          <button class="btn gold" type="button" data-import>Import selected</button>
+        </div>
+      </div>`;
     document.body.append(d);
     d.showModal();
-    d.addEventListener('close', () => {
-      const picked = d.returnValue === 'ok'
-        ? [...d.querySelectorAll('input:checked')].map((i) => ({ messageId: i.dataset.msg, attachmentId: i.dataset.att, filename: i.dataset.name, mimeType: i.dataset.type }))
-        : [];
-      d.remove();
-      resolve(picked);
+
+    const form = d.querySelector('.gm-search');
+    const status = d.querySelector('.gm-status');
+    const results = d.querySelector('.gm-results');
+    const actions = d.querySelector('.gm-actions');
+    const importBtn = d.querySelector('[data-import]');
+    let finished = false;
+    const finish = (files) => { if (finished) return; finished = true; d.close(); d.remove(); resolve(files); };
+
+    const setRange = (name) => {
+      const r = presetRange(name, financialYear);
+      form.from.value = r.from;
+      form.to.value = r.to;
+      d.querySelectorAll('[data-range]').forEach((b) => b.classList.toggle('on', b.dataset.range === name));
+    };
+    d.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => setRange(b.dataset.range)));
+    ['from', 'to'].forEach((n) => form[n].addEventListener('input', () => d.querySelectorAll('[data-range]').forEach((b) => b.classList.remove('on'))));
+    setRange('12m');
+
+    const countTicked = () => {
+      const n = results.querySelectorAll('input:checked').length;
+      importBtn.textContent = n ? `Import selected (${n})` : 'Import selected';
+      importBtn.disabled = !n;
+    };
+    results.addEventListener('change', countTicked);
+    d.querySelector('[data-all]').addEventListener('click', () => { results.querySelectorAll('input').forEach((i) => { i.checked = true; }); countTicked(); });
+    d.querySelector('[data-none]').addEventListener('click', () => { results.querySelectorAll('input').forEach((i) => { i.checked = false; }); countTicked(); });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (form.from.value && form.to.value && form.from.value > form.to.value) { status.textContent = 'The "From" date is after the "To" date.'; return; }
+      const query = searchQuery({ from: form.from.value, to: form.to.value, onlyTax: form.onlyTax.checked, extra: form.extra.value });
+      const btn = form.querySelector('[type=submit]');
+      btn.disabled = true;
+      status.textContent = 'Searching your Gmail...';
+      results.innerHTML = '';
+      actions.hidden = true;
+      try {
+        const emails = await searchEmails(token, query);
+        const range = form.from.value || form.to.value
+          ? `sent ${form.from.value ? 'from ' + new Date(form.from.value).toLocaleDateString('en-AU') : ''} ${form.to.value ? 'to ' + new Date(form.to.value).toLocaleDateString('en-AU') : ''}`.trim()
+          : 'sent any time';
+        status.textContent = emails.length
+          ? `${emails.length} email(s) with attachments, ${range}. Untick anything you don't want.`
+          : `No emails with PDF, CSV or image attachments ${range}. Try a wider date range${form.onlyTax.checked ? ' or untick "Only emails that look like invoices..."' : ''}.`;
+        results.innerHTML = emails.map((m) => `<div class="gm-mail">
+          <div class="gm-head"><b>${escapeHtml(m.subject || '(no subject)')}</b><small>${escapeHtml(m.from)} · ${escapeHtml(new Date(m.date).toLocaleDateString('en-AU'))}</small></div>
+          ${m.attachments.map((a) => `<label class="gm-att"><input type="checkbox" checked data-msg="${escapeHtml(m.id)}" data-att="${escapeHtml(a.attachmentId)}" data-name="${escapeHtml(a.filename)}" data-type="${escapeHtml(a.mimeType)}"> ${escapeHtml(a.filename)} <small>${Math.max(1, Math.round(a.size / 1024))} KB</small></label>`).join('')}
+        </div>`).join('');
+        actions.hidden = !emails.length;
+        countTicked();
+      } catch (error) {
+        status.textContent = `Search failed: ${error.message}`;
+      } finally {
+        btn.disabled = false;
+      }
     });
+
+    importBtn.addEventListener('click', async () => {
+      const chosen = [...results.querySelectorAll('input:checked')].map((i) => ({ messageId: i.dataset.msg, attachmentId: i.dataset.att, filename: i.dataset.name, mimeType: i.dataset.type }));
+      importBtn.disabled = true;
+      const files = [];
+      try {
+        for (const [i, c] of chosen.entries()) {
+          status.textContent = `Downloading ${i + 1} of ${chosen.length}: ${c.filename}`;
+          onStatus(status.textContent);
+          const att = await gmailGet(token, `messages/${c.messageId}/attachments/${c.attachmentId}`);
+          files.push(new File([base64UrlToBytes(att.data)], c.filename, { type: c.mimeType }));
+        }
+        finish(files);
+      } catch (error) {
+        status.textContent = `Download failed: ${error.message}`;
+        importBtn.disabled = false;
+      }
+    });
+
+    d.querySelector('[data-cancel]').addEventListener('click', () => finish([]));
+    d.addEventListener('cancel', (e) => { e.preventDefault(); finish([]); }); // Esc key
   });
 }

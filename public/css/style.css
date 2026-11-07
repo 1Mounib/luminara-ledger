@@ -291,3 +291,16 @@ dialog header small { display: block; color: var(--muted); font-size: .8rem; }
 .gm-att { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; font-size: .84rem; cursor: pointer; }
 .gm-att input { flex: none; width: auto; accent-color: var(--gold); }
 .gm-att small { color: var(--muted); }
+.gm-search { display: grid; gap: .6rem; padding-bottom: .9rem; border-bottom: 1px solid var(--line); margin-bottom: .6rem; }
+.gm-label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.gm-presets { display: flex; flex-wrap: wrap; gap: .35rem; }
+.gm-presets button { background: transparent; border: 1px solid var(--line-2); color: var(--muted); border-radius: 99px; padding: .3rem .7rem; font: 500 .8rem var(--sans); cursor: pointer; }
+.gm-presets button.on, .gm-presets button:hover { border-color: var(--gold); color: var(--gold-2); }
+.gm-dates { display: flex; gap: .8rem; flex-wrap: wrap; }
+.gm-dates label, .gm-extra { display: grid; gap: .25rem; font-size: .8rem; color: var(--muted); }
+.gm-dates input { min-width: 160px; }
+.gm-check { display: flex; gap: .5rem; align-items: center; font-size: .85rem; cursor: pointer; }
+.gm-check input { flex: none; width: auto; accent-color: var(--gold); }
+.gm-search .btn.gold { justify-self: start; }
+.gm-status { font-size: .85rem; color: var(--muted); margin: .2rem 0 .6rem; }
+.gm-actions { position: sticky; bottom: -1rem; background: var(--panel); padding: .6rem 0; margin-top: .4rem; border-top: 1px solid var(--line); }
