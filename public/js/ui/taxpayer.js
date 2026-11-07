@@ -28,27 +28,55 @@ const state = {
 };
 const masking = createMaskingSession({ knownNames: [user.name] });
 
-// Restore this taxpayer's saved return (if any). With an account it comes from the
-// database (masked); the real text, file names and token map come from this device's vault.
+// ------------------------------------------------------------ my returns
+// Every return this taxpayer has made (newest first). With an account they come
+// from the database (masked); the real text, file names and token map come from
+// this device's encrypted vault.
+let mine = [];
 let existing = null;
-try {
-  const mine = (await listReturns()).filter((r) => (isCloud() ? r.ownerId === user.userId : r.owner === user.name));
-  existing = mine[0] || null;
-} catch (error) {
-  toast(`Could not load your saved return: ${error.message}`, 'error');
+
+async function refreshMine() {
+  try {
+    mine = (await listReturns())
+      .filter((r) => (isCloud() ? r.ownerId === user.userId : r.owner === user.name))
+      .sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+  } catch (error) {
+    toast(`Could not load your returns: ${error.message}`, 'error');
+  }
+  renderPicker();
 }
-if (existing) {
+
+/** Loads one saved return onto the screen. */
+async function openReturn(record) {
   const [tokens, items, names] = await Promise.all(
-    ['tokens', 'items', 'docnames'].map((k) => loadSecret(`${k}:${existing.id}`).catch(() => null))
+    ['tokens', 'items', 'docnames'].map((k) => loadSecret(`${k}:${record.id}`).catch(() => null))
   );
+  masking.clear();
   masking.importMap(tokens || {});
+  existing = record;
   Object.assign(state, {
-    returnId: existing.id, status: existing.status, financialYear: existing.financialYear,
-    docs: existing.docs.map((d) => ({ ...d, docName: names?.[d.docId] || d.docName, stage: 'Ready' })),
-    items: existing.items || items || existing.masked, // real lines if this device has them
-    masked: existing.masked, analysis: existing.analysis, result: existing.result
+    returnId: record.id, status: record.status, financialYear: record.financialYear,
+    docs: (record.docs || []).map((d) => ({ ...d, docName: names?.[d.docId] || d.docName, stage: 'Ready' })),
+    items: record.items || items || record.masked || [], // real lines if this device has them
+    masked: record.masked || [], analysis: record.analysis, result: record.result, payload: null
   });
 }
+
+const STATUS_TEXT = { draft: 'Draft', submitted: 'With your accountant', approved: 'Approved' };
+function renderPicker() {
+  const picker = $('#returnPicker');
+  picker.hidden = mine.length < 2;
+  picker.innerHTML = mine.map((r) => {
+    const date = new Date(r.createdAt || r.updatedAt || Date.now()).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    const t = r.result?.totals;
+    const amount = t ? (t.refund >= 0 ? `refund ${money(t.refund)}` : `owing ${money(-t.refund)}`) : (r.docs?.length ? 'not analysed' : 'empty');
+    return `<option value="${escapeHtml(r.id)}" ${r.id === state.returnId ? 'selected' : ''}>${escapeHtml(`${date} · FY ${r.financialYear} · ${STATUS_TEXT[r.status] || r.status} · ${amount}`)}</option>`;
+  }).join('');
+}
+
+await refreshMine();
+if (mine[0]) await openReturn(mine[0]); // open the most recent return
+renderPicker();
 
 const copilot = createCopilot({ root: $('#copilotPanel'), getState: () => state, masking, onUploadRequest: () => $('#fileInput').click() });
 
@@ -194,6 +222,7 @@ async function persist() {
   await saveSecret(`tokens:${state.returnId}`, masking.exportMap());
   await saveSecret(`items:${state.returnId}`, state.items);
   await saveSecret(`docnames:${state.returnId}`, Object.fromEntries(ready.map((d) => [d.docId, d.docName])));
+  refreshMine(); // keep the "my returns" list up to date
 }
 
 // ------------------------------------------------------------ tax position
@@ -311,24 +340,40 @@ $('#privacyBtn').addEventListener('click', () => {
 });
 
 $('#resetBtn').addEventListener('click', async () => {
-  if (state.status !== 'draft') {
-    // A submitted return can't be deleted (it belongs to the accountant's queue now),
-    // so start a brand-new, separate return instead.
-    if (!confirm('Your submitted return stays with your accountant. Start a new, separate return?')) return;
-    Object.assign(state, { returnId: null, status: 'draft', docs: [], items: [], masked: [], analysis: null, result: null, payload: null });
+  const submitted = state.status !== 'draft';
+  const question = submitted
+    ? 'Your submitted return stays with your accountant. Start a new, separate return?'
+    : 'Start again? This deletes the documents and estimate in this draft.';
+  if (!confirm(question)) return;
+  try {
+    // A draft can be deleted; a submitted return belongs to the accountant's queue now
+    if (!submitted && state.returnId) await deleteReturn(state.returnId);
+    // Save a brand-new empty return straight away, so it's what you see next time you sign in
+    Object.assign(state, {
+      returnId: `R-${Date.now().toString(36).toUpperCase()}`, status: 'draft',
+      docs: [], items: [], masked: [], analysis: null, result: null, payload: null
+    });
     existing = null;
+    masking.clear();
+    await persist();
     renderDocs();
     setPipeline(null);
     renderPosition();
-    return toast('New return started. Add documents or import from Gmail.', 'ok');
-  }
-  if (!confirm('Start again? This deletes your documents and estimate.')) return;
-  try {
-    if (state.returnId) await deleteReturn(state.returnId);
-    location.reload();
+    toast('New return started. Add documents or import from Gmail.', 'ok');
   } catch (error) {
-    toast(`Could not delete: ${error.message}`, 'error');
+    toast(`Could not start again: ${error.message}`, 'error');
   }
+});
+
+// ------------------------------------------------------------ switching between returns
+$('#returnPicker').addEventListener('change', async (e) => {
+  const record = mine.find((r) => r.id === e.target.value);
+  if (!record) return;
+  await openReturn(record);
+  renderDocs();
+  setPipeline(state.result ? 'Review ready' : state.docs.length ? 'Privacy masking' : null, true);
+  renderPosition();
+  toast(state.status === 'draft' ? 'Opened your draft return.' : `Opened a return that is ${STATUS_TEXT[state.status].toLowerCase()} (read-only).`, 'info');
 });
 
 // ------------------------------------------------------------ first render

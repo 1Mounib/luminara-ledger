@@ -163,7 +163,9 @@ export function createMaskingSession(options = {}) {
         }
       }
     },
-    size: () => tokenToValue.size
+    size: () => tokenToValue.size,
+    /** Forgets all tokens (used when switching to a different return). */
+    clear() { valueToToken.clear(); tokenToValue.clear(); for (const k of Object.keys(counters)) delete counters[k]; }
   };
 }
 
