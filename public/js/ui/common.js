@@ -161,10 +161,10 @@ export function renderHeader(active) {
   const header = document.createElement('header');
   header.className = 'topbar';
   header.innerHTML = html`
-    <a class="brand" href="/">${raw(LOGO_SVG)}<span><b>Luminara Ledger</b><small>Sovereign by design</small></span></a>
+    <a class="brand" href="/">${raw(LOGO_SVG)}<span>Luminara Ledger</span></a>
     <nav>
       ${s?.role === 'taxpayer' ? raw(`<a href="/app.html" class="${active === 'app' ? 'on' : ''}">My tax return</a>`) : ''}
-      ${s?.role === 'accountant' ? raw(`<a href="/accountant.html" class="${active === 'accountant' ? 'on' : ''}">Client queue</a><a href="/accountant.html#audit" class="${active === 'audit' ? 'on' : ''}">Audit ledger</a>`) : ''}
+      ${s?.role === 'accountant' ? raw(`<a href="/accountant.html" class="${active === 'accountant' ? 'on' : ''}">Client returns</a><a href="/accountant.html#audit" class="${active === 'audit' ? 'on' : ''}">Audit log</a>`) : ''}
     </nav>
     <div class="topbar-right">
       <label class="switch" title="Sovereign Mode: the AI runs only on this device - no document text is sent to the cloud AI">
@@ -172,7 +172,7 @@ export function renderHeader(active) {
         <span class="track"><span class="thumb"></span></span>
         <span class="switch-label">Sovereign Mode</span>
       </label>
-      ${s ? raw(`<span class="who">${escapeHtml(s.name)} <em>${escapeHtml(s.role)}</em><small class="mode-badge ${s.mode === 'cloud' ? 'cloud' : 'local'}" title="${s.mode === 'cloud' ? 'Signed in with an account - data saved in the Sydney database (masked only)' : 'Offline demo - everything stays in this browser'}">${s.mode === 'cloud' ? 'Account' : 'Offline demo'}</small></span><button class="btn ghost small" id="signOutBtn">Sign out</button>`) : ''}
+      ${s ? raw(`<span class="who">${escapeHtml(s.name)} <em>${escapeHtml(s.role)}</em><small class="mode-badge ${s.mode === 'cloud' ? 'cloud' : 'local'}" title="${s.mode === 'cloud' ? 'Signed in with an account. Saved in the Sydney database (hidden-detail copy only).' : 'Demo: everything stays in this browser.'}">${s.mode === 'cloud' ? 'Saved online' : 'Demo'}</small></span><button class="btn ghost small" id="signOutBtn">Sign out</button>`) : ''}
     </div>`;
   document.body.prepend(header);
   const flash = sessionStorage.getItem('ll.flash');
@@ -185,4 +185,4 @@ export function renderHeader(active) {
   });
 }
 
-export const LOGO_SVG = `<svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6dc8a"/><stop offset="1" stop-color="#b8892b"/></linearGradient></defs><path d="M24 4 L42 40 H6 Z" fill="none" stroke="url(#lg)" stroke-width="2.5" stroke-linejoin="round"/><path d="M24 4 L24 40 M24 4 L15 40" stroke="url(#lg)" stroke-width="1.6" opacity=".7"/><ellipse cx="24" cy="30" rx="21" ry="6" fill="none" stroke="url(#lg)" stroke-width="1.3" opacity=".8"/></svg>`;
+export const LOGO_SVG = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1d4e89"/><path d="M16 6 L26 25 H6 Z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><path d="M10.5 19.5 H21.5" stroke="#9fc0ea" stroke-width="2"/></svg>`;

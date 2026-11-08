@@ -181,14 +181,14 @@ function gmailDialog(token, financialYear, onStatus) {
           </div>
           <label class="gm-check"><input type="checkbox" name="onlyTax" checked> Only emails that look like invoices, receipts, bills or statements</label>
           <label class="gm-extra">Extra search words (optional)<input name="extra" placeholder="e.g. Officeworks, or a sender's name"></label>
-          <button class="btn gold" type="submit">Search Gmail</button>
+          <button class="btn primary" type="submit">Search Gmail</button>
         </form>
         <p class="gm-status" aria-live="polite"></p>
         <div class="gm-results gmail-list"></div>
         <div class="row-end gm-actions" hidden>
           <button class="btn ghost small" type="button" data-all>Select all</button>
           <button class="btn ghost small" type="button" data-none>Select none</button>
-          <button class="btn gold" type="button" data-import>Import selected</button>
+          <button class="btn primary" type="button" data-import>Import selected</button>
         </div>
       </div>`;
     document.body.append(d);
@@ -239,7 +239,7 @@ function gmailDialog(token, financialYear, onStatus) {
           ? `${emails.length} email(s) with attachments, ${range}. Untick anything you don't want.`
           : `No emails with PDF, CSV or image attachments ${range}. Try a wider date range${form.onlyTax.checked ? ' or untick "Only emails that look like invoices..."' : ''}.`;
         results.innerHTML = emails.map((m) => `<div class="gm-mail">
-          <div class="gm-head"><b>${escapeHtml(m.subject || '(no subject)')}</b><small>${escapeHtml(m.from)} · ${escapeHtml(new Date(m.date).toLocaleDateString('en-AU'))}</small></div>
+          <div class="gm-head"><b>${escapeHtml(m.subject || '(no subject)')}</b><small>From ${escapeHtml(m.from)}, ${escapeHtml(new Date(m.date).toLocaleDateString('en-AU'))}</small></div>
           ${m.attachments.map((a) => `<label class="gm-att"><input type="checkbox" checked data-msg="${escapeHtml(m.id)}" data-att="${escapeHtml(a.attachmentId)}" data-name="${escapeHtml(a.filename)}" data-type="${escapeHtml(a.mimeType)}"> ${escapeHtml(a.filename)} <small>${Math.max(1, Math.round(a.size / 1024))} KB</small></label>`).join('')}
         </div>`).join('');
         actions.hidden = !emails.length;

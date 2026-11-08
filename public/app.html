@@ -3,60 +3,73 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My tax return · Luminara Ledger</title>
+  <title>My tax return - Luminara Ledger</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="app">
-  <main class="workspace">
-    <!-- PANEL 1: documents (Engine A runs here, in the browser) -->
-    <section class="panel" id="docsPanel" aria-labelledby="docsTitle">
-      <div class="panel-head">
-        <h2 id="docsTitle"><span class="step">1</span> Your documents</h2>
-        <button class="btn ghost small" id="resetBtn" title="Remove everything and start again">Start again</button>
+  <main class="page">
+    <!-- Where you are: the three steps of a return -->
+    <div class="return-bar">
+      <ol class="progress" id="progress" aria-label="Your progress">
+        <li data-step="1">Add your documents</li>
+        <li data-step="2">Check your estimate</li>
+        <li data-step="3">Send to your accountant</li>
+      </ol>
+      <div class="return-tools">
+        <label class="return-picker-row">Return<select id="returnPicker" hidden aria-label="Choose one of your returns"></select></label>
+        <button class="btn small" id="resetBtn" type="button" title="Start a new, empty return">Start a new return</button>
       </div>
-      <label class="return-picker-row"><span>My returns</span><select id="returnPicker" hidden aria-label="Choose one of your returns"></select></label>
-      <p class="hint">Files are read <b>inside your browser</b>. Your name, TFN, address and account numbers are masked before anything is sent anywhere.</p>
-      <p class="engine-status" id="engineStatus"><span class="dot"></span> Checking AI status...</p>
+    </div>
 
-      <div id="dropzone" class="dropzone">
-        <p><b>Drop files here</b><br><small>PDF, CSV, or a photo of a receipt</small></p>
-        <button class="btn" id="chooseBtn" type="button">Choose files</button>
-        <input type="file" id="fileInput" multiple accept=".pdf,.csv,.png,.jpg,.jpeg,.webp" hidden>
-      </div>
-      <div class="sample-row">
-        <button class="btn ghost small" id="loadSamples" type="button">Load sample documents</button>
-        <button class="btn ghost small" id="loadOcr" type="button">Add receipt photo (OCR)</button>
-        <button class="btn ghost small" id="gmailBtn" type="button" hidden title="Read-only: finds receipts, bills and statements in your Gmail. Only what you tick is imported.">&#9993; Import from Gmail</button>
-      </div>
-      <p class="engine-status" id="gmailStatus" hidden></p>
+    <div class="workspace">
+      <!-- Documents (Engine A: read and masked in this browser) -->
+      <section class="panel" id="docsPanel" aria-labelledby="docsTitle">
+        <h2 id="docsTitle">Your documents</h2>
+        <p class="hint">Read on this computer. Your name, TFN, address and account numbers are hidden before anything is sent.</p>
 
-      <ul class="doc-list" id="docList"></ul>
-      <ol class="pipeline" id="pipeline"></ol>
+        <div id="dropzone" class="dropzone">
+          <p><b>Drag files here</b><small>PDF, CSV timesheet, or a photo of a receipt</small></p>
+          <button class="btn" id="chooseBtn" type="button">Choose files</button>
+          <input type="file" id="fileInput" multiple accept=".pdf,.csv,.png,.jpg,.jpeg,.webp" hidden>
+        </div>
+        <div class="sample-row">
+          <button class="btn" id="gmailBtn" type="button" hidden title="Read-only: finds receipts, bills and statements in your Gmail. Only what you tick is imported.">&#9993; Import from Gmail</button>
+        </div>
+        <p class="sample-note">No documents handy? Use the <button class="btn link" id="loadSamples" type="button">sample documents</button> or a <button class="btn link" id="loadOcr" type="button">sample receipt photo</button>.</p>
+        <p class="status-line" id="gmailStatus" hidden></p>
 
-      <button class="btn gold block" id="analyseBtn" disabled>Analyse my documents</button>
-      <button class="btn ghost block" id="privacyBtn">See exactly what left this device</button>
-    </section>
+        <ul class="doc-list" id="docList"></ul>
+        <ol class="pipeline" id="pipeline" aria-label="Processing steps"></ol>
 
-    <!-- PANEL 2: tax position (deterministic rules engine) -->
-    <section class="panel" id="positionPanel" aria-labelledby="posTitle">
-      <div class="panel-head"><h2 id="posTitle"><span class="step">2</span> Your tax position <small>2025-26</small></h2></div>
-      <div id="positionBody"></div>
-      <button class="btn gold block" id="submitBtn" hidden>Send to my accountant for review</button>
-    </section>
+        <button class="btn primary block" id="analyseBtn" disabled>Work out my estimate</button>
+        <p class="engine-status" id="engineStatus"><span class="dot"></span> Checking the AI service...</p>
+        <button class="btn link" id="privacyBtn" type="button">See exactly what was shared</button>
+      </section>
 
-    <!-- PANEL 3: Copilot -->
-    <section class="panel copilot" id="copilotPanel" aria-labelledby="copTitle">
-      <div class="panel-head"><h2 id="copTitle"><span class="step">3</span> Copilot</h2></div>
-      <div class="chat-log" aria-live="polite"></div>
-      <div class="chips">
-        <button data-ask="How did you work out my refund?">My refund?</button>
-        <button data-ask="Why isn't my electricity bill claimed?">Electricity bill?</button>
-        <button data-ask="How was the chair deduction worked out?">The chair?</button>
-        <button data-ask="What records do I need to keep?">Records to keep?</button>
-      </div>
-      <form class="chat-form"><input type="text" placeholder="Ask about your return..." aria-label="Ask the Copilot"><button class="btn gold">Ask</button></form>
-    </section>
+      <!-- The estimate (deterministic rules engine) -->
+      <section class="panel" id="positionPanel" aria-labelledby="posTitle">
+        <div class="panel-head"><h2 id="posTitle">Your estimate</h2><span class="muted">2025-26 tax year</span></div>
+        <div id="positionBody"></div>
+        <button class="btn primary block" id="submitBtn" hidden>Send to my accountant</button>
+      </section>
+
+      <!-- Copilot -->
+      <aside class="panel copilot" id="copilotPanel" aria-labelledby="copTitle">
+        <h2 id="copTitle">Questions about your return</h2>
+        <div class="chat-log" aria-live="polite"></div>
+        <div class="chips" aria-label="Suggested questions">
+          <button data-ask="How did you work out my refund?">How was my refund worked out?</button>
+          <button data-ask="Why isn't my electricity bill claimed?">Why isn't my power bill claimed?</button>
+          <button data-ask="How was the chair deduction worked out?">How was the chair worked out?</button>
+          <button data-ask="What records do I need to keep?">What records should I keep?</button>
+        </div>
+        <form class="chat-form"><input type="text" placeholder="Type a question" aria-label="Ask a question about your return"><button class="btn primary">Ask</button></form>
+      </aside>
+    </div>
   </main>
   <script type="module" src="/js/ui/taxpayer.js"></script>
 </body>

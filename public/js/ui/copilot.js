@@ -39,14 +39,14 @@ export function createCopilot({ root, getState, masking, onUploadRequest }) {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error);
         answer = masking.rehydrate(body.reply);           // real names restored on THIS device only
-        badge = `Cloud AI · ${body.model}`;
+        badge = `Answered by cloud AI (${body.model})`;
       } catch (e) {
         answer = localAnswer(question, state);
-        badge = 'On-device answer (cloud unavailable)';
+        badge = 'Answered on this device (cloud AI unavailable)';
       }
     } else {
       answer = localAnswer(question, state);
-      badge = 'On-device answer';
+      badge = 'Answered on this device';
     }
     history.push({ role: 'assistant', content: masking.mask(answer).text });
     thinking.querySelector('.bubble').innerHTML = formatText(answer) + `<small class="src">${escapeHtml(badge)}</small>`;
@@ -65,12 +65,12 @@ export function createCopilot({ root, getState, masking, onUploadRequest }) {
       add('assistant', 'Your documents are analysed. Ask me anything about the result, for example how the chair was worked out.').classList.add('nudge');
       return;
     }
-    const el = add('assistant', `I need one more thing:\n${missing.map((f) => `- ${f.message}`).join('\n')}`, '<button class="btn gold small upload-nudge">Upload a document</button>');
+    const el = add('assistant', `I need one more thing:\n${missing.map((f) => `- ${f.message}`).join('\n')}`, '<button class="btn primary small upload-nudge">Add a document</button>');
     el.classList.add('nudge');
     el.querySelector('.upload-nudge').addEventListener('click', onUploadRequest);
   }
 
-  add('assistant', 'Hi! I\'m your Copilot. Upload your documents (or load the samples) and press **Analyse**. I can then explain every number.');
+  add('assistant', 'Hi, I can explain any figure in your estimate. Add your documents and choose **Work out my estimate** first.');
   return { ask, nudge, add };
 }
 

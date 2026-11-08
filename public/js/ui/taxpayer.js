@@ -70,7 +70,7 @@ function renderPicker() {
     const date = new Date(r.createdAt || r.updatedAt || Date.now()).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
     const t = r.result?.totals;
     const amount = t ? (t.refund >= 0 ? `refund ${money(t.refund)}` : `owing ${money(-t.refund)}`) : (r.docs?.length ? 'not analysed' : 'empty');
-    return `<option value="${escapeHtml(r.id)}" ${r.id === state.returnId ? 'selected' : ''}>${escapeHtml(`${date} · FY ${r.financialYear} · ${STATUS_TEXT[r.status] || r.status} · ${amount}`)}</option>`;
+    return `<option value="${escapeHtml(r.id)}" ${r.id === state.returnId ? 'selected' : ''}>${escapeHtml(`${date}, FY ${r.financialYear}: ${STATUS_TEXT[r.status] || r.status}, ${amount}`)}</option>`;
   }).join('');
 }
 
@@ -85,9 +85,9 @@ async function refreshStatus() {
   const s = await cloudStatus();
   state.cloudAi = Boolean(s.cloudAi);
   const el = $('#engineStatus');
-  if (getSovereignMode()) el.innerHTML = '<span class="dot ok"></span> Sovereign Mode - all processing on this device';
-  else if (state.cloudAi) el.innerHTML = `<span class="dot gold"></span> Dual-engine - masked data to ${escapeHtml(s.provider)} (${escapeHtml(s.preferredModel)})`;
-  else el.innerHTML = '<span class="dot warn"></span> Cloud AI not set up - on-device agents only';
+  if (getSovereignMode()) el.innerHTML = '<span class="dot ok"></span> Sovereign Mode: all AI runs on this device';
+  else if (state.cloudAi) el.innerHTML = `<span class="dot primary"></span> AI: ${escapeHtml(s.provider)}, sees hidden-detail text only`;
+  else el.innerHTML = '<span class="dot warn"></span> Cloud AI unavailable: using the on-device AI';
 }
 document.addEventListener('sovereignchange', refreshStatus);
 refreshStatus();
@@ -168,7 +168,7 @@ function renderDocs() {
       <div class="doc-main">
         <b title="${d.docName}">${d.docName}</b>
         <small>${d.stage === 'Ready'
-          ? raw(`${d.lines} lines read · <span class="mask-count">${d.maskedCount} private details masked</span>${d.ocr ? ` · read with OCR, ${d.confidence}% confidence` : ''}${d.lines === 0 ? ' · <b class="warn-text">no text found</b>' : ''}`)
+          ? raw(`${d.lines} lines read, <span class="mask-count">${d.maskedCount} private details hidden</span>${d.ocr ? `. Read with OCR (${d.confidence}% confidence)` : ''}${d.lines === 0 ? '. <b class="warn-text">No text found</b>' : ''}`)
           : d.error || d.stage}</small>
       </div>
       ${d.stage === 'Ready' ? raw(`<button class="btn ghost small" data-view="${escapeHtml(d.docId)}">View</button>`) : ''}
@@ -189,7 +189,7 @@ function setPipeline(stage, completeUpTo = false) {
 $('#analyseBtn').addEventListener('click', async () => {
   const btn = $('#analyseBtn');
   btn.disabled = true;
-  btn.textContent = 'Analysing...';
+  btn.textContent = 'Working it out...';
   try {
     const rules = await loadRules(state.financialYear);
     const useCloud = !getSovereignMode() && state.cloudAi;
@@ -207,7 +207,7 @@ $('#analyseBtn').addEventListener('click', async () => {
     toast(`Analysis failed: ${error.message}`, 'error');
     console.error(error);
   } finally {
-    btn.textContent = 'Analyse my documents';
+    btn.textContent = 'Work out my estimate';
     renderDocs();
   }
 });
@@ -233,8 +233,9 @@ async function persist() {
 // ------------------------------------------------------------ tax position
 function renderPosition() {
   const panel = $('#positionBody');
+  renderProgress();
   if (!state.result) {
-    panel.innerHTML = `<div class="placeholder"><p>Your estimate will appear here.</p><p class="muted">Upload documents, then press <b>Analyse my documents</b>.</p></div>`;
+    panel.innerHTML = `<div class="placeholder"><p>Your estimate will appear here</p><p class="muted">Add your documents, then choose <b>Work out my estimate</b>.</p></div>`;
     $('#submitBtn').hidden = true;
     return;
   }
@@ -242,42 +243,71 @@ function renderPosition() {
   const a = state.analysis;
   const refund = t.refund >= 0;
   const flags = [...a.flags].sort((x, y) => rank(x.severity) - rank(y.severity));
+  const lines = state.result.lines;
+  const pick = (fn) => lines.filter(fn).map((l) => raw(lineHtml(l, a.facts)));
+  const row = (cls, label, amount) => raw(`<tr class="${cls}"><td>${escapeHtml(label)}</td><td class="amt">${amount}</td><td class="src"></td></tr>`);
+  const risk = ['', 'low', 'medium', 'high'][riskBand(a.riskScore)];
 
   panel.innerHTML = html`
-    <div class="flags">${flags.map((f) => raw(flagHtml(f)))}</div>
-    <div class="meter ${refund ? 'refund' : 'owe'}">
-      <span>${refund ? 'Estimated refund' : 'Estimated amount you owe'}</span>
-      <strong>${money(Math.abs(t.refund))}</strong>
-      <div class="meter-sub">
-        <div><small>Taxable income</small><b>${money(t.taxableIncome)}</b></div>
-        <div><small>Deductions</small><b>${money(t.totalDeductions)}</b></div>
-        <div><small>Net tax</small><b>${money(t.netTax)}</b></div>
-        <div><small>Audit risk</small><b class="risk r${riskBand(a.riskScore)}">${a.riskScore}/100</b></div>
-      </div>
+    <div class="summary ${refund ? 'refund' : 'owe'}">
+      <p class="summary-label">${refund ? 'Estimated refund' : 'Estimated amount you owe'}</p>
+      <p class="summary-amount">${money(Math.abs(t.refund))}</p>
+      <p class="summary-text">Your employer withheld ${money(t.taxWithheld)} in tax. Your tax works out to ${money(t.netTax)}, so ${refund ? `you should get ${money(t.refund)} back` : `you may need to pay ${money(-t.refund)}`}.</p>
+      <p class="summary-risk">Audit risk: <b class="risk r${riskBand(a.riskScore)}">${risk}</b> (${a.riskScore} out of 100)</p>
     </div>
-    <h3>How it was calculated</h3>
+    <div class="flags">${flags.map((f) => raw(flagHtml(f)))}</div>
+    <h3>How it was worked out</h3>
     <table class="lines">
-      <tbody>${state.result.lines.map((l) => raw(lineHtml(l, a.facts)))}</tbody>
+      <tbody>
+        <tr><th colspan="3">Income</th></tr>
+        ${pick((l) => l.kind === 'income')}
+        <tr><th colspan="3">Deductions</th></tr>
+        ${pick((l) => l.kind === 'deduction')}
+        ${pick((l) => l.kind === 'info')}
+        ${row('subtotal', 'Taxable income (rounded down to whole dollars)', money(t.taxableIncome))}
+        <tr><th colspan="3">Tax</th></tr>
+        ${pick((l) => l.kind === 'tax' || l.kind === 'offset')}
+        ${row('subtotal', 'Tax for the year', money(t.netTax))}
+        ${pick((l) => l.kind === 'credit')}
+        ${row('total', refund ? 'Estimated refund' : 'Estimated amount owing', money(Math.abs(t.refund)))}
+      </tbody>
     </table>
-    ${a.aiNotes?.length ? raw(`<h3>Compliance agent notes <span class="tag">AI · advisory only</span></h3><div class="flags">${a.aiNotes.map(flagHtml).join('')}</div>`) : ''}
-    <h3>Agent activity <span class="tag">${a.mode === 'dual-engine' ? 'Dual-engine' : 'On-device'}</span></h3>
-    <ul class="agents">${a.reports.map((r) => raw(`<li><b>${escapeHtml(r.agent)}</b><span>${escapeHtml(r.summary)}</span><small>${escapeHtml(r.engine)} · ${r.ms} ms</small></li>`))}</ul>`;
+    ${a.aiNotes?.length ? raw(`<h3>Notes from the compliance check <span class="tag">AI suggestion</span></h3><div class="flags">${a.aiNotes.map(flagHtml).join('')}</div>`) : ''}
+    <details class="agents-box">
+      <summary>How your documents were read (${a.reports.length} AI agents, ${a.mode === 'dual-engine' ? 'cloud and on-device' : 'on this device only'})</summary>
+      <ul class="agents">${a.reports.map((r) => raw(`<li><b>${escapeHtml(r.agent)}</b><span>${escapeHtml(r.summary)}</span><small>${escapeHtml(r.engine)}, ${(r.ms / 1000).toFixed(1)} s</small></li>`))}</ul>
+    </details>`;
 
   $$('[data-refs]', panel).forEach((el) => el.addEventListener('click', () => showSource(el.dataset.refs.split(','), el.dataset.caption)));
   const submit = $('#submitBtn');
   submit.hidden = false;
   submit.disabled = state.status !== 'draft';
-  submit.textContent = state.status === 'draft' ? 'Send to my accountant for review' : `Status: ${state.status === 'approved' ? 'approved by your accountant' : 'waiting for your accountant'}`;
+  submit.textContent = state.status === 'draft' ? 'Send to my accountant' : state.status === 'approved' ? 'Approved by your accountant' : 'Sent - waiting for your accountant';
+}
+
+/** The 1-2-3 bar at the top: Add documents -> Check estimate -> Send to accountant. */
+function renderProgress() {
+  const sent = state.status !== 'draft';
+  const current = sent ? 3 : state.result ? 2 : 1;
+  $$('#progress li').forEach((li) => {
+    const n = Number(li.dataset.step);
+    const done = n < current || (n === 3 && sent);
+    li.classList.toggle('done', done);
+    li.classList.toggle('current', n === current && !done);
+    if (n === current) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    if (n === 3) li.textContent = state.status === 'approved' ? 'Approved by your accountant' : sent ? 'Sent to your accountant' : 'Send to your accountant';
+  });
 }
 
 function lineHtml(l, facts) {
   const refs = l.sourceRefs || [];
   const origin = originOf(l, facts);
-  const amount = l.kind === 'offset' || l.kind === 'deduction' ? `-${money(l.amount)}` : money(l.amount);
+  const minus = (l.kind === 'offset' || l.kind === 'deduction') && l.amount > 0;
+  const amount = l.kind === 'info' ? '<span class="muted">not claimed</span>' : `${minus ? '&minus;' : ''}${money(l.amount)}`;
   return `<tr class="k-${l.kind}">
-    <td><b>${escapeHtml(l.label)}</b><small>${escapeHtml(l.formula)}</small><small class="law">${escapeHtml(l.legalBasis)}${origin ? ` · <span class="origin">${escapeHtml(origin)}</span>` : ''}</small></td>
-    <td class="amt">${l.kind === 'info' ? '<span class="muted">$0.00</span>' : amount}</td>
-    <td>${refs.length ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-caption="${escapeHtml(l.label)}">Source</button>` : ''}</td>
+    <td><b>${escapeHtml(l.label)}</b><small>${escapeHtml(l.formula)}</small><small class="law">${escapeHtml(l.legalBasis)}${origin ? `. <span class="origin">Found by: ${escapeHtml(origin)}</span>` : ''}</small></td>
+    <td class="amt">${amount}</td>
+    <td class="src">${refs.length ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-caption="${escapeHtml(l.label)}">Source</button>` : ''}</td>
   </tr>`;
 }
 
@@ -291,7 +321,7 @@ function originOf(line, facts) {
 
 function flagHtml(f) {
   const refs = (f.refs || []).filter(Boolean);
-  return `<div class="flag ${f.severity}"><span class="sev">${{ high: 'Action needed', medium: 'Check', info: 'Note' }[f.severity] || 'Note'}</span><p>${escapeHtml(f.message)}</p>${refs.length ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-caption="Flag source">Source</button>` : ''}</div>`;
+  return `<div class="flag ${f.severity}"><span class="sev">${{ high: 'Action needed', medium: 'Please check', info: 'Good to know' }[f.severity] || 'Good to know'}</span><p>${escapeHtml(f.message)}</p>${refs.length ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-caption="Flag source">Source</button>` : ''}</div>`;
 }
 
 function showSource(refs, caption) {
@@ -335,7 +365,7 @@ $('#privacyBtn').addEventListener('click', () => {
         <div><small>Private details replaced</small><b>${Object.keys(tokens).length}</b></div>
         <div><small>PII scan of payload</small><b class="${scan.length ? 'bad' : 'ok'}">${scan.length ? 'Found: ' + scan.join(', ') : 'Clean'}</b></div>
       </div>
-      <p>${Object.entries(types).map(([k, n]) => `${n} × ${k}`).join(' · ') || 'No private details found yet.'}</p>
+      <p>${Object.entries(types).map(([k, n]) => `${n} × ${k}`).join(', ') || 'No private details found yet.'}</p>
       ${sent ? raw(`<pre class="payload">${escapeHtml(sent.slice(0, 20000))}${sent.length > 20000 ? '\n...' : ''}</pre>`) : raw('<p class="ok-note">Nothing has been sent. Either Sovereign Mode was on, the cloud AI is not set up, or you have not analysed yet.</p>')}
     </div>`;
   document.body.append(dialog);

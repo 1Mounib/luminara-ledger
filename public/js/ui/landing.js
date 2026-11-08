@@ -13,7 +13,7 @@ const go = (s) => {
   location.href = next && next.includes(s.role === 'accountant' ? 'accountant' : 'app') ? next : home(s);
 };
 
-$('.hero-copy').insertAdjacentHTML('afterbegin', `<a class="brand big" href="/">${LOGO_SVG}<span><b>Luminara Ledger</b><small>Sovereign by design</small></span></a>`);
+$('#brandSlot').innerHTML = `<a class="brand big" href="/">${LOGO_SVG}<span>Luminara Ledger</span></a>`;
 
 // ---- messages at the top of the card
 const s = getSession();
@@ -40,7 +40,7 @@ $$('input[name=upRole]').forEach((r) => r.addEventListener('change', () => {
 }));
 
 function busy(form, on, label) {
-  const btn = form.querySelector('button.gold');
+  const btn = form.querySelector('button.primary');
   btn.disabled = on;
   btn.dataset.label ??= btn.textContent;
   btn.textContent = on ? label : btn.dataset.label;

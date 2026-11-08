@@ -40,9 +40,9 @@ async function renderQueue() {
   if (!selectedId && returns.length) selectedId = returns[0].id;
   $('#queue').innerHTML = returns.map((r) => html`
     <li class="${r.id === selectedId ? 'on' : ''}" data-id="${r.id}">
-      <div><b>${r.owner}</b><small>${r.id} · FY ${r.financialYear}</small></div>
+      <div><b>${r.owner}</b><small>FY ${r.financialYear} return</small></div>
       <div class="q-right"><span class="pill ${r.status}">${r.status}</span><span class="risk r${band(r.riskScore)}">risk ${r.riskScore ?? 0}</span></div>
-    </li>`).join('') || '<li class="empty">No returns waiting. Ask a client to send one, or load the demo client.</li>';
+    </li>`).join('') || '<li class="empty">No returns waiting for review. When a client sends their return it appears here. You can also load the demo client.</li>';
   $$('#queue li[data-id]').forEach((li) => li.addEventListener('click', () => { selectedId = li.dataset.id; viewerDoc = null; renderQueue(); }));
   renderDetail();
 }
@@ -94,11 +94,11 @@ async function renderDetail() {
 
   box.innerHTML = html`
     <div class="detail-head">
-      <div><h2>${r.owner} <small>${r.id}</small></h2><p class="muted">FY ${r.financialYear} · ${r.docs.length} documents · analysed in ${r.analysis.mode === 'dual-engine' ? 'dual-engine' : 'on-device'} mode</p></div>
+      <div><h2>${r.owner} <small>${r.id}</small></h2><p class="muted">FY ${r.financialYear} return ${r.id}, ${r.docs.length} documents, read ${r.analysis.mode === 'dual-engine' ? 'with cloud and on-device AI' : 'with on-device AI only'}</p></div>
       <div class="actions">
         <button class="btn ghost small" id="printBtn">Print audit dossier</button>
         <button class="btn ghost small" id="jsonBtn">Download summary (JSON)</button>
-        <button class="btn gold" id="approveBtn" ${locked ? 'disabled' : ''}>${locked ? 'Approved and signed off' : 'Approve and sign off'}</button>
+        <button class="btn primary" id="approveBtn" ${locked ? 'disabled' : ''}>${locked ? 'Approved and signed off' : 'Approve and sign off'}</button>
       </div>
     </div>
     <div class="flags compact">${flags.map((f) => raw(`<div class="flag ${f.severity}"><span class="sev">${{ high: 'Action needed', medium: 'Check', info: 'Note' }[f.severity]}</span><p>${escapeHtml(f.message)}</p></div>`))}</div>
@@ -111,7 +111,7 @@ async function renderDetail() {
     </div>
     <div class="verify">
       <div class="verify-fields">
-        <h3>Extracted fields <small>hover to see the source · edit to override</small></h3>
+        <h3>Figures found in the documents <small>Point at a row to see where it came from. Change a value and choose Override to correct it.</small></h3>
         <table class="fields">
           <tbody>${fields.map((f, i) => raw(fieldRow(f, i, r, locked)))}</tbody>
         </table>
@@ -214,7 +214,7 @@ function askJustification(label, from, to) {
       <div class="viewer-body">
         <p class="muted">Every change is recorded in the audit ledger with your name, the time, the old and new values and this reason.</p>
         <textarea required minlength="10" rows="3" placeholder="e.g. Timesheet shows 20 hours of annual leave in week 12"></textarea>
-        <div class="row-end"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn gold" value="ok">Save override</button></div>
+        <div class="row-end"><button class="btn ghost" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Save override</button></div>
       </div></form>`;
     document.body.append(d);
     d.showModal();
@@ -250,7 +250,7 @@ async function printDossier(r) {
   const w = window.open('', '_blank'); // open first, so the pop-up blocker allows it
   const entries = (await ledger.entries().catch(() => [])).filter((e) => e.returnId === r.id);
   w.document.write(`<!doctype html><title>Audit dossier ${escapeHtml(r.id)}</title><style>body{font:13px system-ui;margin:32px;color:#111}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #ccc;padding:6px;text-align:left;vertical-align:top}small{color:#555}h1{margin:0}</style>
-    <h1>Luminara Ledger - audit dossier</h1><p>${escapeHtml(r.owner)} · ${escapeHtml(r.id)} · FY ${escapeHtml(r.financialYear)} · status: ${escapeHtml(r.status)}${r.approvedBy ? ` by ${escapeHtml(r.approvedBy)}` : ''}</p>
+    <h1>Luminara Ledger - audit dossier</h1><p>${escapeHtml(r.owner)}, return ${escapeHtml(r.id)}, FY ${escapeHtml(r.financialYear)}, status: ${escapeHtml(r.status)}${r.approvedBy ? ` by ${escapeHtml(r.approvedBy)}` : ''}</p>
     <h2>Calculation</h2><table><tr><th>Item</th><th>Amount</th><th>Working</th><th>Basis</th><th>Source lines</th></tr>${r.result.lines.map((l) => `<tr><td>${escapeHtml(l.label)}</td><td>${money(l.amount)}</td><td>${escapeHtml(l.formula)}</td><td>${escapeHtml(l.legalBasis)}</td><td><small>${(l.sourceRefs || []).slice(0, 4).map((id) => escapeHtml(r.items.find((i) => i.id === id)?.text || id)).join('<br>')}</small></td></tr>`).join('')}</table>
     <h2>Flags</h2><ul>${r.analysis.flags.map((f) => `<li>[${f.severity}] ${escapeHtml(f.message)}</li>`).join('')}</ul>
     <h2>Audit trail</h2><table><tr><th>#</th><th>Time</th><th>User</th><th>Action</th><th>Change</th><th>Reason</th><th>Hash</th></tr>${entries.map((e) => `<tr><td>${e.seq}</td><td>${escapeHtml(e.time)}</td><td>${escapeHtml(e.user)}</td><td>${escapeHtml(e.action)}</td><td>${e.field ? `${escapeHtml(e.field)}: ${escapeHtml(e.from)} → ${escapeHtml(e.to)}` : ''}</td><td>${escapeHtml(e.justification || '')}</td><td><small>${escapeHtml(String(e.hash || '').slice(0, 16))}...</small></td></tr>`).join('')}</table>
@@ -271,8 +271,8 @@ async function renderAudit() {
   const status = await ledger.verifyChain().catch((error) => ({ ok: false, error: error.message }));
   if (status.error) { $('#chainStatus').textContent = `Could not verify: ${status.error}`; return; }
   $('#chainStatus').innerHTML = status.ok
-    ? `<span class="dot ok"></span> Chain intact - ${status.total} entries verified with SHA-256`
-    : `<span class="dot bad"></span> Chain BROKEN at entry #${status.brokenAt} - the ledger has been tampered with`;
+    ? `<span class="dot ok"></span> Unchanged: all ${status.total} entries check out (SHA-256 hash chain intact)`
+    : `<span class="dot bad"></span> Warning: entry #${status.brokenAt} has been changed or removed since it was written (hash chain broken)`;
 }
 $('#verifyBtn').addEventListener('click', renderAudit);
 

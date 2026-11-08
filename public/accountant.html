@@ -3,35 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Accountant workspace · Luminara Ledger</title>
+  <title>Client returns - Luminara Ledger</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="app">
-  <main class="workspace acct" id="queueView">
-    <aside class="panel queue-panel" aria-labelledby="qTitle">
-      <div class="panel-head"><h2 id="qTitle">Client queue</h2></div>
-      <p class="hint">Sorted by audit risk. Nothing is lodged until you approve it.</p>
-      <ul class="queue" id="queue"></ul>
-      <button class="btn ghost block small" id="demoClientBtn">Load demo client</button>
-    </aside>
-    <section class="panel detail-panel" id="detail"></section>
-  </main>
+  <main class="page">
+    <div class="workspace acct" id="queueView">
+      <aside class="panel queue-panel" aria-labelledby="qTitle">
+        <h2 id="qTitle">Returns to review</h2>
+        <p class="hint">Highest audit risk first. Nothing is lodged until you approve it.</p>
+        <ul class="queue" id="queue"></ul>
+        <button class="btn block small" id="demoClientBtn">Load demo client</button>
+      </aside>
+      <section class="panel detail-panel" id="detail"></section>
+    </div>
 
-  <main class="workspace single" id="auditView" hidden>
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Audit ledger <small>tamper-evident, hash-chained</small></h2>
-        <button class="btn ghost small" id="verifyBtn">Verify chain</button>
-      </div>
-      <p class="engine-status" id="chainStatus"></p>
-      <div class="table-scroll">
-        <table class="audit">
-          <thead><tr><th>#</th><th>When</th><th>Who</th><th>Action</th><th>Change</th><th>Justification</th><th>Hash</th></tr></thead>
-          <tbody id="auditRows"></tbody>
-        </table>
-      </div>
-    </section>
+    <div class="workspace single" id="auditView" hidden>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Audit log <small>every change and approval, in order</small></h2>
+          <button class="btn small" id="verifyBtn">Check the log hasn't been changed</button>
+        </div>
+        <p class="engine-status" id="chainStatus"></p>
+        <div class="table-scroll">
+          <table class="audit">
+            <thead><tr><th>#</th><th>When</th><th>Who</th><th>Action</th><th>Change</th><th>Reason</th><th>Fingerprint</th></tr></thead>
+            <tbody id="auditRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
   <script type="module" src="/js/ui/accountant.js"></script>
 </body>

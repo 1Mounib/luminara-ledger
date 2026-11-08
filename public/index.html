@@ -3,32 +3,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Luminara Ledger · Sovereign AI tax assistant</title>
-  <meta name="description" content="Work-from-home tax deductions with a privacy-first, dual-engine AI. Documents are read on your device; only masked data reaches the cloud; a deterministic engine does the maths.">
+  <title>Luminara Ledger - work-from-home tax, checked by your accountant</title>
+  <meta name="description" content="Work out your work-from-home tax deductions. Documents are read on your own computer, personal details are hidden before any AI sees them, and your accountant approves the result.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="landing">
+  <header class="site-head"><div class="inner" id="brandSlot"></div></header>
   <main>
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">Sovereign dual-engine AI · Work-from-home deductions</p>
-        <h1>Your tax documents never leave your device <em>unmasked</em>.</h1>
-        <p class="lead">Luminara Ledger reads your income statement, timesheet and receipts in your browser, hides your personal details, lets AI agents classify them, and leaves the maths to a rules engine that cannot hallucinate.</p>
-        <ul class="pillars">
-          <li><b>Engine A · on your device</b><span>Reads PDFs, CSVs and receipt photos. Masks TFN, ABN, names, addresses and account numbers.</span></li>
-          <li><b>Engine B · cloud AI agents</b><span>Five specialist agents see only masked text. Every answer is checked against the source line.</span></li>
-          <li><b>Rules engine · deterministic</b><span>ATO 2025-26 rates, 70c/hour fixed rate, decline in value. Same input, same answer, every time.</span></li>
-        </ul>
+        <h1>Your work-from-home tax claim, worked out and checked before it's lodged</h1>
+        <p class="lead">Add your income statement, timesheet and receipts. Luminara Ledger works out your deductions and estimated refund using the ATO's 2025-26 rules, and your accountant reviews it before anything is lodged.</p>
+
+        <div class="how" aria-labelledby="howTitle">
+          <h2 id="howTitle">How it works</h2>
+          <ol>
+            <li><b>Add your documents</b><span>Upload PDFs, CSV timesheets or receipt photos, or import them from Gmail. They're read on your own computer.</span></li>
+            <li><b>Your private details are hidden</b><span>Your name, TFN, address and account numbers are replaced with placeholders before any AI sees the text.</span></li>
+            <li><b>Your estimate is worked out</b><span>AI sorts your documents. The tax itself is calculated by fixed ATO rules, and every figure links back to the document it came from.</span></li>
+            <li><b>Your accountant approves it</b><span>Nothing is lodged until your accountant has checked and signed off.</span></li>
+          </ol>
+        </div>
       </div>
 
       <div class="signin card" aria-labelledby="signinTitle">
-        <h2 id="signinTitle">Welcome</h2>
+        <h2 id="signinTitle">Sign in</h2>
         <p class="muted small" id="nextNote"></p>
         <div class="tabs" role="tablist">
           <button type="button" role="tab" data-tab="signin" class="on">Sign in</button>
           <button type="button" role="tab" data-tab="signup">Create account</button>
-          <button type="button" role="tab" data-tab="demo">Offline demo</button>
+          <button type="button" role="tab" data-tab="demo">Try a demo</button>
         </div>
 
         <!-- Sign in with an account (Supabase Auth) -->
@@ -36,50 +44,39 @@
           <label>Email<input id="inEmail" type="email" required autocomplete="email"></label>
           <label>Password<input id="inPassword" type="password" required autocomplete="current-password" minlength="8"></label>
           <p class="form-msg" id="inMsg" aria-live="polite"></p>
-          <button class="btn gold block">Sign in</button>
+          <button class="btn primary block">Sign in</button>
         </form>
 
         <!-- Create an account -->
         <form id="signupForm" data-panel="signup" hidden>
-          <label>Full name<input id="upName" required autocomplete="name" placeholder="e.g. Alex Nguyen"></label>
-          <p class="hint-small">Your name is used to mask your own details in documents before the AI sees them.</p>
+          <label>Full name<input id="upName" required autocomplete="name" placeholder="As it appears on your documents"></label>
+          <p class="hint-small">We use your name to hide it in your documents before the AI reads them.</p>
           <label>Email<input id="upEmail" type="email" required autocomplete="email"></label>
-          <label>Password (at least 8 characters)<input id="upPassword" type="password" required autocomplete="new-password" minlength="8"></label>
+          <label>Password<input id="upPassword" type="password" required autocomplete="new-password" minlength="8" aria-describedby="pwHint"></label>
+          <p class="hint-small" id="pwHint">At least 8 characters.</p>
           <fieldset class="roles">
-            <legend>I am a...</legend>
-            <label><input type="radio" name="upRole" value="taxpayer" checked><span><b>Taxpayer</b><small>Upload documents, see my estimate</small></span></label>
-            <label><input type="radio" name="upRole" value="accountant"><span><b>Accountant</b><small>Needs the practice code</small></span></label>
+            <legend>I'm using Luminara Ledger as</legend>
+            <label><input type="radio" name="upRole" value="taxpayer" checked><span><b>A taxpayer</b><small>Work out my own return</small></span></label>
+            <label><input type="radio" name="upRole" value="accountant"><span><b>An accountant</b><small>Review clients' returns (needs the practice code)</small></span></label>
           </fieldset>
-          <label id="codeRow" hidden>Practice code<input id="upCode" autocomplete="off" placeholder="Given to you by the practice"></label>
+          <label id="codeRow" hidden>Practice code<input id="upCode" autocomplete="off" placeholder="Given to you by your practice"></label>
           <p class="form-msg" id="upMsg" aria-live="polite"></p>
-          <button class="btn gold block">Create account</button>
+          <button class="btn primary block">Create account</button>
         </form>
 
         <!-- Offline demo: no account, data stays in this browser -->
         <div data-panel="demo" hidden>
-          <p class="muted small">No account and no database: everything stays in this browser. Useful for a quick demo without internet.</p>
+          <p class="muted small">Try it without an account. Everything stays in this browser, and nothing is saved online.</p>
           <div class="quick">
-            <button class="btn ghost" data-demo="Alex Nguyen|taxpayer">Alex Nguyen · taxpayer</button>
-            <button class="btn ghost" data-demo="Jordan Lee CPA|accountant">Jordan Lee · accountant</button>
+            <button class="btn" data-demo="Alex Nguyen|taxpayer">Continue as Alex Nguyen (taxpayer)</button>
+            <button class="btn" data-demo="Jordan Lee CPA|accountant">Continue as Jordan Lee (accountant)</button>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="flow" aria-label="How it works">
-      <ol>
-        <li><b>Upload</b><span>PDF · CSV · photo</span></li>
-        <li><b>Read</b><span>text + position of every line</span></li>
-        <li><b>Mask</b><span>&lt;PII_TFN_1&gt; replaces 123 456 782</span></li>
-        <li><b>Agents</b><span>5 specialists, run in parallel</span></li>
-        <li><b>Verify</b><span>AI numbers must exist in the source</span></li>
-        <li><b>Calculate</b><span>deterministic rules engine</span></li>
-        <li><b>Approve</b><span>accountant signs off</span></li>
-      </ol>
-    </section>
-
     <footer class="foot">
-      <p>Student prototype for NIT3004 IT Capstone Project 2, Victoria University · Luminara Digital team. Estimates only, not tax advice, and not connected to the ATO. Sample documents are fictional.</p>
+      <p>Student prototype built for NIT3004 IT Capstone Project 2 at Victoria University by the Luminara Digital team. It gives estimates only, isn't tax advice and isn't connected to the ATO. All sample documents are fictional.</p>
     </footer>
   </main>
   <script type="module" src="/js/ui/landing.js"></script>

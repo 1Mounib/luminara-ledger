@@ -1,6 +1,6 @@
 /**
  * Document viewer with source highlighting (FR-021, NFR-010).
- * Shows the original document and draws a gold box around the exact line
+ * Shows the original document and highlights the exact line
  * a number came from, using the bounding box saved when it was read.
  */
 import * as pdfjsLib from '/vendor/pdfjs/pdf.min.mjs';
@@ -85,7 +85,7 @@ export async function renderDocument(container, doc, highlightIds = []) {
   }
 }
 
-/** Draws the gold boxes (or row highlights) for the wanted lines. bbox is on a 0-1000 scale. */
+/** Draws the highlights (or row highlights) for the wanted lines. bbox is on a 0-1000 scale. */
 function highlight(container, doc, items, wanted, page) {
   if (doc.kind === 'csv') {
     container.querySelectorAll('tr[data-id]').forEach((tr) => tr.classList.toggle('hl', wanted.has(tr.dataset.id)));
