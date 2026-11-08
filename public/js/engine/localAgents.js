@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - LOCAL (RULES-BASED) AGENT SWARM
+ * TaxMate - LOCAL (RULES-BASED) AGENT SWARM
  * -------------------------------------------------
  * Five "agents" that read the masked document lines and pull out the facts
  * the tax engine needs. This version uses plain pattern rules, so it:

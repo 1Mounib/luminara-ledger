@@ -1,5 +1,5 @@
 -- =====================================================================
--- LUMINARA LEDGER - DATABASE (Supabase / PostgreSQL, Sydney region)
+-- TaxMate - DATABASE (Supabase / PostgreSQL, Sydney region)
 -- =====================================================================
 -- How to use: Supabase dashboard -> SQL Editor -> New query ->
 -- paste this whole file -> Run. Safe to run again (it updates in place).
@@ -32,7 +32,7 @@ create table if not exists private.settings (
 -- Accountants enter this code when they create their account.
 -- CHANGE IT: edit the value below before running, or later with
 --   update private.settings set value = 'NEW-CODE' where key = 'practice_code';
-insert into private.settings (key, value) values ('practice_code', 'LUMINARA-2026')
+insert into private.settings (key, value) values ('practice_code', 'TaxMate-2026')
   on conflict (key) do nothing;
 alter table private.settings enable row level security;  -- no policies = no website access at all
 

@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - CLOUD CLIENT (Supabase, Sydney region)
+ * TaxMate - CLOUD CLIENT (Supabase, Sydney region)
  * --------------------------------------------------------
  * Talks to Supabase with plain fetch() calls - no library needed:
  *   /auth/v1/...  logins (Supabase Auth)

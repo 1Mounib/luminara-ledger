@@ -1,8 +1,8 @@
 {
-  "name": "luminara-ledger",
+  "name": "TaxMate",
   "version": "0.8.0",
   "private": true,
-  "description": "Luminara Ledger - sovereign dual-engine AI tax assistant (NIT3004 Capstone 2, WFH use case)",
+  "description": "TaxMate - sovereign dual-engine AI tax assistant (NIT3004 Capstone 2, WFH use case)",
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",

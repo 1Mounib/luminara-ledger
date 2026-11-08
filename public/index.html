@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Luminara Ledger - work-from-home tax, checked by your accountant</title>
+  <title>TaxMate - work-from-home tax, checked by your accountant</title>
   <meta name="description" content="Work out your work-from-home tax deductions. Documents are read on your own computer, personal details are hidden before any AI sees them, and your accountant approves the result.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,12 +13,38 @@
 </head>
 <body class="landing">
   <header class="site-head"><div class="inner" id="brandSlot"></div></header>
-  <main>
+<main>
+    <!-- TaxMate full-width hero banner -->
+    <section class="taxmate-banner" aria-labelledby="bannerTitle">
+      <div class="taxmate-banner-content">
+        <p class="taxmate-banner-eyebrow">
+          AI-POWERED TAX PREPARATION MADE SIMPLE
+        </p>
+
+        <h1 id="bannerTitle">
+          Less paperwork. Less stress.
+          <span>Smarter tax preparation.</span>
+        </h1>
+
+        <p>
+          Organise your financial documents, identify potential
+          deductions and estimate your tax return with TaxMate.
+          AI-assisted analysis and accountant review help make
+          tax preparation easier.
+        </p>
+      </div>
+
+      <div class="taxmate-banner-image">
+        <img
+          src="/images/taxmate-hero.png"
+          alt="Illustration of a tax receipt, calculator and coins"
+        >
+      </div>
+    </section>
+
+    <!-- Existing login and How it works section -->
     <section class="hero">
       <div class="hero-copy">
-        <h1>Your work-from-home tax claim, worked out and checked before it's lodged</h1>
-        <p class="lead">Add your income statement, timesheet and receipts. Luminara Ledger works out your deductions and estimated refund using the ATO's 2025-26 rules, and your accountant reviews it before anything is lodged.</p>
-
         <div class="how" aria-labelledby="howTitle">
           <h2 id="howTitle">How it works</h2>
           <ol>
@@ -55,7 +81,7 @@
           <label>Password<input id="upPassword" type="password" required autocomplete="new-password" minlength="8" aria-describedby="pwHint"></label>
           <p class="hint-small" id="pwHint">At least 8 characters.</p>
           <fieldset class="roles">
-            <legend>I'm using Luminara Ledger as</legend>
+            <legend>I'm using TaxMate as</legend>
             <label><input type="radio" name="upRole" value="taxpayer" checked><span><b>A taxpayer</b><small>Work out my own return</small></span></label>
             <label><input type="radio" name="upRole" value="accountant"><span><b>An accountant</b><small>Review clients' returns (needs the practice code)</small></span></label>
           </fieldset>
@@ -76,7 +102,7 @@
     </section>
 
     <footer class="foot">
-      <p>Student prototype built for NIT3004 IT Capstone Project 2 at Victoria University by the Luminara Digital team. It gives estimates only, isn't tax advice and isn't connected to the ATO. All sample documents are fictional.</p>
+      <p>Student prototype built for NIT3004 IT Capstone Project 2 at Victoria University by the Taxmate Development team. It gives estimates only, isn't tax advice and isn't connected to the ATO. All sample documents are fictional.</p>
     </footer>
   </main>
   <script type="module" src="/js/ui/landing.js"></script>

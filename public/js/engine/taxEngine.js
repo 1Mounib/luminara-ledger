@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - DETERMINISTIC TAX ENGINE
+ * TaxMate - DETERMINISTIC TAX ENGINE
  * ------------------------------------------
  * This file does ALL of the tax maths. The AI never calculates money.
  * (Capstone 1: FR-016 "bypass LLM-based arithmetic entirely")

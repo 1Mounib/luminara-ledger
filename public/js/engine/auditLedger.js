@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - TAMPER-EVIDENT AUDIT LEDGER (NFR-011, NFR-012)
+ * TaxMate - TAMPER-EVIDENT AUDIT LEDGER (NFR-011, NFR-012)
  * ----------------------------------------------------------------
  * Every override, approval and AI run is written here. Each entry contains
  * the SHA-256 hash of the entry before it (a "hash chain", like a blockchain).
