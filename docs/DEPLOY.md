@@ -1,16 +1,16 @@
-# Deploying Luminara Ledger (free)
+# Deploying TaxMate (free)
 
 You need two free accounts: **GitHub**, which stores the code, and **Vercel**, which hosts the website. A **Groq** key is optional; it turns on the cloud AI.
 
 ## 1. Put the code on GitHub
-1. Create a private repository called `luminara-ledger`.
+1. Create a private repository called `TaxMate`.
 2. Upload the project files, keeping the folder structure.
 
 ## 2. Publish with Vercel
 1. Go to **vercel.com** and choose **Sign up**, then **Continue with GitHub**. Pick the free **Hobby** plan.
-2. Click **Add New... → Project**, then **Import** next to `luminara-ledger`.
+2. Click **Add New... → Project**, then **Import** next to `Taxmate`.
 3. Leave the settings as they are. Framework Preset is **Other**, and there's no build command.
-4. Click **Deploy**. About 30 seconds later you get a link like `luminara-ledger-xxxx.vercel.app`.
+4. Click **Deploy**. About 30 seconds later you get a link like `TaxMate-xxxx.vercel.app`.
 
 The site works now, using the on-device agents.
 
@@ -32,7 +32,7 @@ The site works now, using the on-device agents.
 4. In Supabase, go to **Authentication**, then **Sign In / Providers**, then **Email**. Turn **Confirm email** **off** and click **Save**. Supabase's free email service only delivers to project members, so confirmation emails wouldn't reach other users.
 5. Create the accounts on the website:
    - taxpayers choose **Taxpayer**;
-   - accountants choose **Accountant** and enter the **practice code** (`LUMINARA-2026` unless you changed it).
+   - accountants choose **Accountant** and enter the **practice code** (`TaxMate-2026` unless you changed it).
    To change the code, run `update private.settings set value = 'NEW-CODE' where key = 'practice_code';` in the SQL Editor.
 
 What is stored where:
@@ -46,7 +46,7 @@ What is stored where:
 1. At **console.cloud.google.com**, create a project, then search for **Gmail API** and click **Enable**.
 2. Open **Google Auth Platform** and click **Get started**. Use **External** for the audience. Under **Audience**, add **Test users**: only these people can use the import while the app is in testing.
 3. Under **Data Access**, add the scope `https://www.googleapis.com/auth/gmail.readonly`.
-4. Under **Clients**, create a **Web application** client with the authorised JavaScript origin `https://luminara-ledger.vercel.app`.
+4. Under **Clients**, create a **Web application** client with the authorised JavaScript origin `https://TaxMate-ledger.vercel.app`.
 5. Put the **Client ID** (public) in `public/js/config.js` as `GOOGLE_CLIENT_ID`. No client secret is needed.
 
 How it works: Google's pop-up asks for read-only access. The browser then searches Gmail directly and downloads only the attachments the user ticks, and the access is revoked straight after. Emails never pass through our server, the database or the AI.

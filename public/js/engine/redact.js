@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - LEVEL-2 PII MASKING (Engine A)
+ * TaxMate - LEVEL-2 PII MASKING (Engine A)
  * ------------------------------------------------
  * Runs in the user's browser BEFORE anything is sent to the cloud AI (NFR-002).
  * It swaps personal details for tokens, e.g.

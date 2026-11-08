@@ -1,7 +1,7 @@
-# Luminara Ledger: Capstone 2 build
+# TaxMate: Capstone 2 build
 
 **Sovereign dual-engine AI tax assistant.** This release covers Use Case 1: a salaried employee claiming work-from-home deductions.
-NIT3004 IT Capstone Project 2, Victoria University · Luminara Digital team.
+NIT3004 IT Capstone Project 2, Victoria University · TaxMate Development team.
 
 > Student prototype. It gives estimates only, it isn't tax advice, and it isn't connected to the ATO. All sample documents are fictional.
 

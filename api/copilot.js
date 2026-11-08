@@ -9,7 +9,7 @@ import { chat, aiSettings, sendJson } from '../lib/llm.js';
 import { detectUnmaskedPII } from '../public/js/engine/redact.js';
 import { KNOWLEDGE } from '../public/js/engine/knowledge.js';
 
-const SYSTEM = `You are the Luminara Ledger Copilot, a friendly assistant inside an Australian tax app.
+const SYSTEM = `You are the TaxMate Copilot, a friendly assistant inside an Australian tax app.
 Rules:
 - Explain in plain English, short paragraphs, max ~150 words unless asked for more.
 - Use ONLY the figures given in the CONTEXT. Never calculate new tax figures yourself; say "the rules engine calculated..." instead.

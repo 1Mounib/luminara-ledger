@@ -13,7 +13,7 @@ const go = (s) => {
   location.href = next && next.includes(s.role === 'accountant' ? 'accountant' : 'app') ? next : home(s);
 };
 
-$('#brandSlot').innerHTML = `<a class="brand big" href="/">${LOGO_SVG}<span>Luminara Ledger</span></a>`;
+$('#brandSlot').innerHTML = `<a class="brand big" href="/">${LOGO_SVG}<span>TaxMate</span></a>`;
 
 // ---- messages at the top of the card
 const s = getSession();

@@ -250,11 +250,11 @@ async function printDossier(r) {
   const w = window.open('', '_blank'); // open first, so the pop-up blocker allows it
   const entries = (await ledger.entries().catch(() => [])).filter((e) => e.returnId === r.id);
   w.document.write(`<!doctype html><title>Audit dossier ${escapeHtml(r.id)}</title><style>body{font:13px system-ui;margin:32px;color:#111}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #ccc;padding:6px;text-align:left;vertical-align:top}small{color:#555}h1{margin:0}</style>
-    <h1>Luminara Ledger - audit dossier</h1><p>${escapeHtml(r.owner)}, return ${escapeHtml(r.id)}, FY ${escapeHtml(r.financialYear)}, status: ${escapeHtml(r.status)}${r.approvedBy ? ` by ${escapeHtml(r.approvedBy)}` : ''}</p>
+    <h1>TaxMate - audit dossier</h1><p>${escapeHtml(r.owner)}, return ${escapeHtml(r.id)}, FY ${escapeHtml(r.financialYear)}, status: ${escapeHtml(r.status)}${r.approvedBy ? ` by ${escapeHtml(r.approvedBy)}` : ''}</p>
     <h2>Calculation</h2><table><tr><th>Item</th><th>Amount</th><th>Working</th><th>Basis</th><th>Source lines</th></tr>${r.result.lines.map((l) => `<tr><td>${escapeHtml(l.label)}</td><td>${money(l.amount)}</td><td>${escapeHtml(l.formula)}</td><td>${escapeHtml(l.legalBasis)}</td><td><small>${(l.sourceRefs || []).slice(0, 4).map((id) => escapeHtml(r.items.find((i) => i.id === id)?.text || id)).join('<br>')}</small></td></tr>`).join('')}</table>
     <h2>Flags</h2><ul>${r.analysis.flags.map((f) => `<li>[${f.severity}] ${escapeHtml(f.message)}</li>`).join('')}</ul>
     <h2>Audit trail</h2><table><tr><th>#</th><th>Time</th><th>User</th><th>Action</th><th>Change</th><th>Reason</th><th>Hash</th></tr>${entries.map((e) => `<tr><td>${e.seq}</td><td>${escapeHtml(e.time)}</td><td>${escapeHtml(e.user)}</td><td>${escapeHtml(e.action)}</td><td>${e.field ? `${escapeHtml(e.field)}: ${escapeHtml(e.from)} → ${escapeHtml(e.to)}` : ''}</td><td>${escapeHtml(e.justification || '')}</td><td><small>${escapeHtml(String(e.hash || '').slice(0, 16))}...</small></td></tr>`).join('')}</table>
-    <p><small>This is an estimate prepared with Luminara Ledger for practitioner review. It is not lodged with the ATO.</small></p>`);
+    <p><small>This is an estimate prepared with TaxMate for practitioner review. It is not lodged with the ATO.</small></p>`);
   w.document.close();
   w.print();
 }

@@ -53,6 +53,6 @@ createServer(async (req, res) => {
     res.end(error.code === 'ENOENT' ? 'Not found' : String(error.stack));
   }
 }).listen(PORT, () => {
-  console.log(`Luminara Ledger running at http://localhost:${PORT}`);
+  console.log(`TaxMate running at http://localhost:${PORT}`);
   console.log(process.env.GROQ_API_KEY ? 'Cloud AI: Groq key found' : 'Cloud AI: no key - on-device agents only');
 });

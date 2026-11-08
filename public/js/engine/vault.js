@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - LOCAL ENCRYPTED VAULT (NFR-002c, NFR-003)
+ * TaxMate - LOCAL ENCRYPTED VAULT (NFR-002c, NFR-003)
  * -----------------------------------------------------------
  * Saves sensitive things on THIS device, encrypted with AES-256-GCM:
  *  - the PII token map (<PII_TFN_1> -> real TFN), and
@@ -8,7 +8,7 @@
  * The encryption key is created by the browser and stored in IndexedDB as
  * "non-extractable": JavaScript can use it but can never read or copy it out.
  */
-const DB_NAME = 'luminara-vault';
+const DB_NAME = 'TaxMate-vault';
 const DB_VERSION = 1;
 
 function openDb() {

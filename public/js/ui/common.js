@@ -161,7 +161,7 @@ export function renderHeader(active) {
   const header = document.createElement('header');
   header.className = 'topbar';
   header.innerHTML = html`
-    <a class="brand" href="/">${raw(LOGO_SVG)}<span>Luminara Ledger</span></a>
+    <a class="brand" href="/">${raw(LOGO_SVG)}<span>TaxMate</span></a>
     <nav>
       ${s?.role === 'taxpayer' ? raw(`<a href="/app.html" class="${active === 'app' ? 'on' : ''}">My tax return</a>`) : ''}
       ${s?.role === 'accountant' ? raw(`<a href="/accountant.html" class="${active === 'accountant' ? 'on' : ''}">Client returns</a><a href="/accountant.html#audit" class="${active === 'audit' ? 'on' : ''}">Audit log</a>`) : ''}
@@ -185,4 +185,4 @@ export function renderHeader(active) {
   });
 }
 
-export const LOGO_SVG = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1d4e89"/><path d="M16 6 L26 25 H6 Z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><path d="M10.5 19.5 H21.5" stroke="#9fc0ea" stroke-width="2"/></svg>`;
+export const LOGO_SVG = `<img class="logo" src="/images/taxmate_header_icon.png" alt="" aria-hidden="true" style="width:72px;height:72px;object-fit:contain;border-radius:10px;margin-right:-12px;">`;

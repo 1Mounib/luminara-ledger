@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - DOCUMENT READING (Engine A, runs in the browser)
+ * TaxMate - DOCUMENT READING (Engine A, runs in the browser)
  * ------------------------------------------------------------------
  * Turns an uploaded file into "items" (one per line of text), each with
  * WHERE it is on the page (a bounding box). That location is what lets the

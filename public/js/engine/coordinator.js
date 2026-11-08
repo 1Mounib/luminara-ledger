@@ -1,5 +1,5 @@
 /**
- * LUMINARA LEDGER - COORDINATOR / RECONCILIATION (FR-015)
+ * TaxMate - COORDINATOR / RECONCILIATION (FR-015)
  * -------------------------------------------------------
  * Combines the on-device agents with the cloud AI agents, and checks the AI.
  *
