@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin settings - TaxMate</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="app">
+  <main class="page">
+    <div class="workspace single">
+      <section class="panel admin">
+        <div class="panel-head">
+          <h2>Admin settings <small>change how the AI agents work, without changing code</small></h2>
+        </div>
+        <p class="admin-status" id="adminStatus" aria-live="polite">Loading...</p>
+
+        <div class="tabs admin-tabs" role="tablist">
+          <button type="button" role="tab" data-tab="prompts" class="on">Agent instructions</button>
+          <button type="button" role="tab" data-tab="connectors">Connectors</button>
+          <button type="button" role="tab" data-tab="performance">AI performance</button>
+          <button type="button" role="tab" data-tab="mcp">MCP address</button>
+        </div>
+
+        <!-- Prompts -->
+        <div data-panel="prompts">
+          <p class="hint">Each AI agent follows written instructions (its "prompt"). Edit them here and the live agents use the new version within 30 seconds. Every version is kept, so you can always go back. The reply format stays in the code, because the app has to be able to read the agent's answer.</p>
+          <div class="prompt-layout">
+            <nav class="agent-list" id="agentList" aria-label="Agents"></nav>
+            <div class="prompt-editor" id="promptEditor"></div>
+          </div>
+        </div>
+
+        <!-- Connectors -->
+        <div data-panel="connectors" hidden>
+          <p class="hint">Connectors are the tools and data sources each agent may use. Switch one off and the agent stops using it straight away, with no code change.</p>
+          <div class="table-scroll"><table class="admin-table" id="connectorTable"></table></div>
+          <div class="admin-actions">
+            <button class="btn primary" id="saveConnectors">Save connectors</button>
+            <button class="btn ghost" id="resetConnectors">Back to the defaults</button>
+          </div>
+          <div class="how-note">
+            <b>Adding functionality later.</b> A new capability (for example, a bank-feed import or a payslip API) is added as one more connector: it is registered once in <code>connectors.js</code> with what it does, and it then appears in this table. The admin decides which agents may use it, and, if it needs no personal data, whether outside AI tools may use it through the MCP address. The agents themselves don't need rewriting.
+          </div>
+        </div>
+
+        <!-- Performance -->
+        <div data-panel="performance" hidden>
+          <div class="perf-head">
+            <p class="hint">Every analysis and review records numbers only: which agent ran, on the cloud or on this device, how long it took, and whether the coordinator accepted its answers. No document text is ever recorded.</p>
+            <div class="perf-tools">
+              <label>Show <select id="perfRange"><option value="7">last 7 days</option><option value="30" selected>last 30 days</option><option value="0">all time</option></select></label>
+              <button class="btn small" id="perfRefresh">Refresh</button>
+            </div>
+          </div>
+          <div id="perf"></div>
+        </div>
+
+        <!-- MCP -->
+        <div data-panel="mcp" hidden>
+          <div id="mcpInfo"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/js/ui/admin.js"></script>
+</body>
+</html>

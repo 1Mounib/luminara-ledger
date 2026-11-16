@@ -8,18 +8,8 @@
 import { chat, aiSettings, sendJson } from '../lib/llm.js';
 import { detectUnmaskedPII } from '../public/js/engine/redact.js';
 import { KNOWLEDGE } from '../public/js/engine/knowledge.js';
-
-const SYSTEM = `You are the TaxMate Copilot, a friendly assistant inside an Australian tax app.
-Rules:
-- Explain in plain English, short paragraphs, max ~150 words unless asked for more.
-- Use ONLY the figures given in the CONTEXT. Never calculate new tax figures yourself; say "the rules engine calculated..." instead.
-- When useful, cite the rule or law given in the KNOWLEDGE or CONTEXT (e.g. "ITAA 1997 s 8-1").
-- Tokens like <PII_PERSON_1> are placeholders for private details. Use them as-is; never guess what they hide.
-- If a document is missing (see flags), ask the user to upload it (active capture).
-- You are not a registered tax agent. For anything outside work-from-home deductions, suggest asking their accountant.
-
-KNOWLEDGE:
-${KNOWLEDGE}`;
+import { loadAiConfig, buildPrompt } from '../lib/aiConfig.js';
+import { enabledConnectors } from '../public/js/engine/connectors.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Use POST' });
@@ -33,8 +23,13 @@ export default async function handler(req, res) {
   const leaked = detectUnmaskedPII(payload);
   if (leaked.length) return sendJson(res, 422, { error: `Blocked at the privacy boundary: unmasked ${leaked.join(', ')}.`, blocked: leaked });
 
+  // Instructions from the Admin page (or the default); the ATO rules library is a connector the admin can switch off
+  const cfg = await loadAiConfig();
+  const rulesOn = enabledConnectors(cfg.settings, 'copilot').includes('lookup_rule');
+  const system = `${buildPrompt(cfg, 'copilot')}${rulesOn ? `\n\nKNOWLEDGE:\n${KNOWLEDGE}` : ''}`;
+
   const messages = [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: system },
     { role: 'system', content: `CONTEXT (from the rules engine and agents):\n${String(context || 'No documents processed yet.').slice(0, 12000)}` },
     ...(Array.isArray(history) ? history.slice(-8) : []).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content).slice(0, 2000) })),
     { role: 'user', content: question.slice(0, 2000) }

@@ -117,7 +117,7 @@ async function accessToken() {
  * @param {'GET'|'POST'|'PATCH'|'DELETE'} method
  * @param {string} path  e.g. "returns?id=eq.R-1"
  */
-export async function rest(method, path, body) {
+export async function rest(method, path, body, { prefer = 'return=representation' } = {}) {
   const token = await accessToken();
   const res = await fetch(`${baseUrl()}/rest/v1/${path}`, {
     method,
@@ -125,7 +125,7 @@ export async function rest(method, path, body) {
       apikey: SUPABASE_KEY,
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      Prefer: 'return=representation'
+      Prefer: prefer
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {})
   });
@@ -185,4 +185,32 @@ export function createCloudLedger() {
       return { ok: r.ok, brokenAt: r.broken_at, total: Number(r.total) };
     }
   };
+}
+
+// ------------------------------------------------------------------ admin: prompts, settings, AI monitoring (supabase/admin.sql)
+/** Every saved version of every agent's instructions, newest first. Anyone may read; only an admin may add. */
+export async function cloudPromptHistory() {
+  return rest('GET', 'ai_prompts?select=id,agent,instructions,note,created_by_name,created_at&order=id.desc&limit=500');
+}
+/** Saves a NEW version (old versions are never changed, so there is always a history). */
+export async function cloudSavePrompt(agent, instructions, note) {
+  const [row] = await rest('POST', 'ai_prompts', { agent, instructions, note: note || null });
+  return row;
+}
+export async function cloudGetSettings() {
+  const rows = await rest('GET', 'ai_settings?select=key,value,updated_by,updated_at');
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+export async function cloudSaveSetting(key, value, by) {
+  const body = { value, updated_by: by, updated_at: new Date().toISOString() };
+  const updated = await rest('PATCH', `ai_settings?key=eq.${encodeURIComponent(key)}`, body);
+  if (updated.length) return updated[0];
+  return (await rest('POST', 'ai_settings', { key, ...body }))[0];
+}
+/** Numbers only. "return=minimal" because only an admin may read the rows back. */
+export async function cloudLogRuns(rows) {
+  if (rows.length) await rest('POST', 'ai_runs', rows, { prefer: 'return=minimal' });
+}
+export async function cloudListRuns(limit = 1000) {
+  return rest('GET', `ai_runs?select=*&order=at.desc&limit=${limit}`);
 }

@@ -3,7 +3,7 @@
  * verification, NFR-011 overrides with justification, audit ledger).
  * Nothing is "lodged" until the accountant approves (Human Control Always).
  */
-import { requireRole, renderHeader, listReturns, getReturn, saveReturn, getLedger, isCloud, cloudStatus, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
+import { requireRole, renderHeader, listReturns, getReturn, saveReturn, getLedger, getAiSettings, logAiRuns, isCloud, cloudStatus, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
 import { editableFields, setPath, getPath, toEngineInput } from '../engine/facts.js';
 import { calculateReturn } from '../engine/taxEngine.js';
 import { complianceAgent } from '../engine/localAgents.js';
@@ -12,6 +12,8 @@ import { renderDocument, validationHtml } from './viewer.js';
 import { validateLine } from '../engine/validate.js';
 import { localReviewAgent } from '../engine/reviewAgent.js';
 import { activityHtml } from './agentsView.js';
+import { enabledConnectors } from '../engine/connectors.js';
+import { reviewRun } from '../engine/monitoring.js';
 import { ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
 
 const user = requireRole('accountant');
@@ -248,6 +250,7 @@ async function runReview(r) {
   let out = null;
   let engine = 'On-device rules';
   const status = await cloudStatus().catch(() => ({}));
+  const started = performance.now();
   if (status.cloudAi) {
     try {
       const res = await fetch('/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -260,7 +263,12 @@ async function runReview(r) {
       toast(`Cloud review unavailable (${error.message}). Using the on-device review agent.`, 'warn');
     }
   }
-  if (!out) out = localReviewAgent({ ...base, items: masked, rules });
+  const cloudUsed = Boolean(out);
+  if (!out) {
+    const enabled = await getAiSettings().then((s) => enabledConnectors(s, 'review')).catch(() => null);
+    out = localReviewAgent({ ...base, items: masked, rules, enabled });
+  }
+  logAiRuns([reviewRun(out, { returnId: r.id, cloudRequested: Boolean(status.cloudAi), cloudUsed, ms: performance.now() - started })]);
   r.analysis.review = { ...out.review, trace: out.trace, engine, by: user.name, at: new Date().toISOString() };
   try {
     await saveReturn(r);

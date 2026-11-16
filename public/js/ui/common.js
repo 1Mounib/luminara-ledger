@@ -9,7 +9,7 @@
  *    browser's storage - handy for presentations without internet.
  * Every page uses the same functions below, whatever the mode.
  */
-import { signOutCloud, cloudListReturns, cloudGetReturn, cloudSaveReturn, cloudDeleteReturn, createCloudLedger } from '../cloud.js';
+import { signOutCloud, cloudListReturns, cloudGetReturn, cloudSaveReturn, cloudDeleteReturn, createCloudLedger, cloudPromptHistory, cloudSavePrompt, cloudGetSettings, cloudSaveSetting, cloudLogRuns, cloudListRuns } from '../cloud.js';
 import { createLedger } from '../engine/auditLedger.js';
 import { IDLE_MINUTES } from '../config.js';
 
@@ -102,6 +102,43 @@ export function getLedger() {
   };
 }
 
+// ------------------------------------------------------------------ admin: prompts, AI settings, monitoring
+// Cloud: the admin tables in Supabase (only an admin can change them).
+// Demo: kept in this browser, so the Admin page can be shown offline.
+const localJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } };
+
+export async function getPromptHistory() {
+  return isCloud() ? cloudPromptHistory() : localJson('ll.prompts', []);
+}
+export async function savePrompt(agent, instructions, note) {
+  if (isCloud()) return cloudSavePrompt(agent, instructions, note);
+  const all = localJson('ll.prompts', []);
+  const row = { id: (all[0]?.id || 0) + 1, agent, instructions, note: note || null, created_by_name: getSession()?.name, created_at: new Date().toISOString() };
+  localStorage.setItem('ll.prompts', JSON.stringify([row, ...all]));
+  return row;
+}
+export async function getAiSettings() {
+  return isCloud() ? cloudGetSettings() : localJson('ll.aiSettings', {});
+}
+export async function saveAiSetting(key, value) {
+  if (isCloud()) return cloudSaveSetting(key, value, getSession()?.name);
+  localStorage.setItem('ll.aiSettings', JSON.stringify({ ...localJson('ll.aiSettings', {}), [key]: value }));
+}
+/** Records agent runs for the AI performance dashboard. Never stops the app if it fails. */
+export async function logAiRuns(rows) {
+  try {
+    if (isCloud()) return await cloudLogRuns(rows);
+    const at = new Date().toISOString();
+    const all = localJson('ll.aiRuns', []);
+    localStorage.setItem('ll.aiRuns', JSON.stringify([...rows.map((r) => ({ at, ...r })), ...all].slice(0, 1000)));
+  } catch (error) {
+    console.warn('AI monitoring not saved:', error.message);
+  }
+}
+export async function listAiRuns() {
+  return isCloud() ? cloudListRuns() : localJson('ll.aiRuns', []);
+}
+
 // ------------------------------------------------------------------ settings
 export function getSovereignMode() {
   return localStorage.getItem('ll.sovereign') === 'on';
@@ -166,6 +203,7 @@ export function renderHeader(active) {
     <nav>
       ${s?.role === 'taxpayer' ? raw(`<a href="/app.html" class="${active === 'app' ? 'on' : ''}">My tax return</a>`) : ''}
       ${s?.role === 'accountant' ? raw(`<a href="/accountant.html" class="${active === 'accountant' ? 'on' : ''}">Client returns</a><a href="/accountant.html#audit" class="${active === 'audit' ? 'on' : ''}">Audit log</a>`) : ''}
+      ${s?.role === 'admin' ? raw(`<a href="/admin.html" class="${active === 'admin' ? 'on' : ''}">Admin settings</a>`) : ''}
     </nav>
     <div class="topbar-right">
       <label class="switch" title="Sovereign Mode: the AI runs only on this device - no document text is sent to the cloud AI">

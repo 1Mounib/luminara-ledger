@@ -1,7 +1,7 @@
 /**
  * Taxpayer portal (Capstone 1 UI: three panels - Documents | Tax position | Copilot).
  */
-import { requireRole, renderHeader, getSovereignMode, cloudStatus, listReturns, saveReturn, deleteReturn, getLedger, isCloud, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
+import { requireRole, renderHeader, getSovereignMode, cloudStatus, listReturns, saveReturn, deleteReturn, getLedger, getAiSettings, logAiRuns, isCloud, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
 import { createMaskingSession, detectUnmaskedPII } from '../engine/redact.js';
 import { saveSecret, loadSecret } from '../engine/vault.js';
 import { STAGES, ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
@@ -13,6 +13,8 @@ import { DECISION_WORDS, KIND_LABELS, AGENT_NAMES } from '../engine/localAgents.
 import { activityHtml } from './agentsView.js';
 import { createCopilot } from './copilot.js';
 import { gmailConfigured, importFromGmail } from './gmail.js';
+import { enabledConnectors } from '../engine/connectors.js';
+import { analysisRuns } from '../engine/monitoring.js';
 
 const user = requireRole('taxpayer');
 renderHeader('app');
@@ -110,8 +112,12 @@ drop.addEventListener('drop', (e) => addFiles([...e.dataTransfer.files]));
 $('#loadSamples').addEventListener('click', async () => addFiles(await sampleFiles(UC1_SAMPLES)));
 $('#loadOcr').addEventListener('click', async () => addFiles(await sampleFiles(['laptop-stand-receipt.png'])));
 
-// Import from Gmail (only shown when a Google Client ID is set in config.js)
+// Import from Gmail (only shown when a Google Client ID is set in config.js
+// AND the admin has the Gmail connector switched on)
 if (gmailConfigured()) {
+  getAiSettings().then((s) => enabledConnectors(s, 'taxpayer').includes('gmail')).catch(() => true).then((allowed) => { if (allowed) setUpGmail(); });
+}
+function setUpGmail() {
   const btn = $('#gmailBtn');
   const status = $('#gmailStatus');
   btn.hidden = false;
@@ -209,6 +215,7 @@ $('#analyseBtn').addEventListener('click', async () => {
     state.returnId ??= `R-${Date.now().toString(36).toUpperCase()}`;
     await persist().catch((error) => toast(`Analysed, but saving failed: ${error.message}`, 'error'));
     await ledger.append({ action: `analysed (${out.analysis.mode})`, returnId: state.returnId, to: out.result.totals.refund }).catch(() => {});
+    logAiRuns(analysisRuns(out.analysis, { returnId: state.returnId, cloudRequested: useCloud }));
     renderPosition();
     copilot.nudge(state.analysis.flags);
     if (out.cloudError) toast('Cloud AI unavailable - on-device agents were used.', 'warn');

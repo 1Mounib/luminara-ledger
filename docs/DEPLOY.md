@@ -34,12 +34,16 @@ The site works now, using the on-device agents.
    - taxpayers choose **Taxpayer**;
    - accountants choose **Accountant** and enter the **practice code** (`TaxMate-2026` unless you changed it).
    To change the code, run `update private.settings set value = 'NEW-CODE' where key = 'practice_code';` in the SQL Editor.
+6. **Admin settings:** in the SQL Editor, run the whole of `supabase/admin.sql` (after `schema.sql`). Then make your own account an admin (sign up on the site first, then run this with your email):
+   `update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you@example.com');`
+   Sign out and back in, and you land on **Admin settings**.
+7. Optional: to turn on the MCP address, add `MCP_TOKEN` in Vercel (a long random value, marked Sensitive) and redeploy.
 
 What is stored where:
 | Where | What |
 |---|---|
 | Taxpayer's own device (encrypted, AES-256-GCM) | original files, the real text of each line, the PII token map |
-| Supabase (Sydney), protected by Row Level Security | masked lines and their positions, the calculated result, flags, the audit log |
+| Supabase (Sydney), protected by Row Level Security | masked lines and their positions, the calculated result, flags, the audit log, the admin's agent instructions and connector settings, AI run numbers (no document text) |
 | Google Gemini | masked text only, for each analysis and each Copilot question |
 
 ## 5. Turn on "Import from Gmail" (Google Cloud, free)

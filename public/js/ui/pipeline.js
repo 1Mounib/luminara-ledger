@@ -134,6 +134,8 @@ export async function analyse({ docs, masked, rules, useCloud, onStage = () => {
 
   const analysis = reconcile(local, cloud, masked, triage);
   analysis.answers = {};
+  // Which version of each agent's instructions (set by the admin) the cloud agents used
+  if (cloud || triage) analysis.promptVersions = { ...(triage?.promptVersions || {}), ...(cloud?.promptVersions || {}) };
   if (cloudError) {
     analysis.flags.push({ severity: 'info', code: 'CLOUD_FALLBACK', message: `Cloud AI was not available (${cloudError}). The on-device agents produced these results instead.` });
   }

@@ -6,11 +6,11 @@ import { signIn, signUp } from '../cloud.js';
 
 const params = new URLSearchParams(location.search);
 const note = $('#nextNote');
-const home = (s) => (s.role === 'accountant' ? '/accountant.html' : '/app.html');
+const home = (s) => ({ accountant: '/accountant.html', admin: '/admin.html' }[s.role] || '/app.html');
 const go = (s) => {
   const next = params.get('next');
   // only follow "next" if it matches the role (a taxpayer can't be sent to the accountant page)
-  location.href = next && next.includes(s.role === 'accountant' ? 'accountant' : 'app') ? next : home(s);
+  location.href = next && next.includes(home(s).slice(1, -5)) ? next : home(s);
 };
 
 $('#brandSlot').innerHTML = `<a class="brand big" href="/">${LOGO_SVG}<span>TaxMate</span></a>`;
@@ -18,7 +18,7 @@ $('#brandSlot').innerHTML = `<a class="brand big" href="/">${LOGO_SVG}<span>TaxM
 // ---- messages at the top of the card
 const s = getSession();
 if (params.get('msg')) note.textContent = params.get('msg');
-else if (params.get('role')) note.textContent = `Please sign in as ${params.get('role') === 'accountant' ? 'an accountant' : 'a taxpayer'} to continue.`;
+else if (params.get('role')) note.textContent = `Please sign in as ${{ accountant: 'an accountant', admin: 'an admin' }[params.get('role')] || 'a taxpayer'} to continue.`;
 else if (s) {
   note.innerHTML = 'Signed in as <b></b>. <a>Continue</a>';
   note.querySelector('b').textContent = s.name;

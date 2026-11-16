@@ -17,18 +17,27 @@
 import { calculateReturn } from './taxEngine.js';
 import { toEngineInput } from './facts.js';
 import { KNOWLEDGE_ITEMS } from './knowledge.js';
+import { CONNECTORS } from './connectors.js';
 
-export const REVIEW_PROMPT = `You are the Review Agent of TaxMate. You help a registered tax agent (the accountant) review a client's work-from-home tax claim before they approve it. You only advise; the accountant decides.
+export const REVIEW_INSTRUCTIONS = `You are the Review Agent of TaxMate. You help a registered tax agent (the accountant) review a client's work-from-home tax claim before they approve it. You only advise; the accountant decides.
+Check that each figure is supported by its document, that nothing is claimed twice, and what a reasonable change to a doubtful figure would do to the refund. Ask the client a polite question when information is missing.`;
+
+/** The full prompt: the (admin-editable) instructions plus the tools switched on for this agent. */
+export function reviewPrompt(instructions = REVIEW_INSTRUCTIONS, tools = ['read_document', 'recalculate', 'lookup_rule']) {
+  const lines = tools.map((id) => {
+    const c = CONNECTORS.find((x) => x.id === id);
+    return c ? `{"thought": "one short sentence: what you will check and why", "tool": "${c.id}", "args": ${c.args}}   - ${c.description}` : '';
+  }).filter(Boolean);
+  return `${instructions.trim()}
 You work in steps. Each turn, reply with JSON only, choosing ONE tool:
-{"thought": "one short sentence: what you will check and why", "tool": "read_document", "args": {"docId": "..."}}
-{"thought": "...", "tool": "recalculate", "args": {"wfhHours": number, "salary": number, "taxWithheld": number, "assetWorkUse": {"<asset id>": percent}}}   (any subset; the rules engine returns the new totals)
-{"thought": "...", "tool": "lookup_rule", "args": {"topic": "fixed rate | records | depreciation | double claiming | ..."}}
+${lines.join('\n')}
 {"thought": "...", "tool": "finish", "args": {"recommendation": "approve | query_client | adjust", "summary": "one or two sentences for the accountant", "notes": [{"severity": "high|medium|info", "message": "...", "refs": ["line id"]}], "clientQuestions": ["a polite question to the client"]}}
-Rules: never calculate tax or deductions yourself - use recalculate. Cite line ids from the documents. Use at most 5 tools, then finish. Personal details appear as placeholders such as <PII_PERSON_1>; never guess them.`;
+Rules: never calculate tax or deductions yourself${tools.includes('recalculate') ? ' - use recalculate' : ''}. Cite line ids from the documents. Use at most 5 tools, then finish. Personal details appear as placeholders such as <PII_PERSON_1>; never guess them.`;
+}
 
 /** The tools, bound to one return. Each returns a short text result for the agent. */
-export function makeReviewTools({ facts, items, documents = [], rules }) {
-  return {
+export function makeReviewTools({ facts, items, documents = [], rules, enabled = null }) {
+  const all = {
     read_document({ docId } = {}) {
       const lines = items.filter((i) => i.docId === docId);
       if (!lines.length) return { text: `No document with id "${docId}". Documents: ${documents.map((d) => `${d.docId} (${d.kind})`).join(', ')}`, short: 'document not found' };
@@ -62,6 +71,7 @@ export function makeReviewTools({ facts, items, documents = [], rules }) {
       return hit ? { text: hit.text, short: `rule on ${hit.topic}` } : { text: `No rule found for "${topic}". Topics: ${KNOWLEDGE_ITEMS.map((k) => k.topic).join(', ')}`, short: 'no rule found' };
     }
   };
+  return enabled ? Object.fromEntries(Object.entries(all).filter(([k]) => enabled.includes(k))) : all;
 }
 
 /** The return as the agent sees it: masked figures, where they came from, flags and open questions. */
@@ -86,9 +96,9 @@ export function reviewBrief({ facts, result, flags = [], questions = [], answers
  * The cloud loop: ask the model which tool to use, run it, feed the result back.
  * @param {(messages: object[]) => Promise<{text: string, model?: string}>} ask
  */
-export async function runReviewLoop({ ask, tools, brief, maxSteps = 6, timeLeft = () => Infinity }) {
+export async function runReviewLoop({ ask, tools, brief, maxSteps = 6, timeLeft = () => Infinity, instructions }) {
   const messages = [
-    { role: 'system', content: REVIEW_PROMPT },
+    { role: 'system', content: reviewPrompt(instructions, Object.keys(tools)) },
     { role: 'user', content: `The return to review:\n${brief}` }
   ];
   const trace = [];
@@ -108,7 +118,7 @@ export async function runReviewLoop({ ask, tools, brief, maxSteps = 6, timeLeft 
       return { review: cleanFinish(move.args), trace, model };
     }
     const tool = tools[move.tool];
-    const out = tool ? tool(move.args || {}) : { text: `Unknown tool "${move.tool}". Use read_document, recalculate, lookup_rule or finish.`, short: 'unknown tool' };
+    const out = tool ? tool(move.args || {}) : { text: `Tool "${move.tool}" is not available. Use ${[...Object.keys(tools), 'finish'].join(', ')}.`, short: 'tool not available' };
     trace.push({ thought: move.thought, tool: move.tool, args: move.args || {}, result: out.short });
     messages.push({ role: 'assistant', content: JSON.stringify(move) }, { role: 'user', content: `Tool result:\n${out.text}` });
   }
@@ -137,10 +147,13 @@ function cleanFinish(args = {}) {
  * The on-device version: a fixed plan that uses the same tools, so the
  * accountant still gets a review (and sees each step) without the cloud AI.
  */
-export function localReviewAgent({ facts, items, documents = [], rules, flags = [], questions = [], answers = {} }) {
-  const tools = makeReviewTools({ facts, items, documents, rules });
+export function localReviewAgent({ facts, items, documents = [], rules, flags = [], questions = [], answers = {}, enabled = null }) {
+  const tools = makeReviewTools({ facts, items, documents, rules, enabled });
   const trace = [];
-  const use = (thought, tool, args) => { const out = tools[tool](args); trace.push({ thought, tool, args, result: out.short }); return out; };
+  const use = (thought, tool, args) => {
+    if (!tools[tool]) { trace.push({ thought, tool, args, result: 'skipped: this connector is switched off' }); return { text: '', short: '' }; }
+    const out = tools[tool](args); trace.push({ thought, tool, args, result: out.short }); return out;
+  };
   const notes = [];
   const clientQuestions = [];
 
@@ -152,13 +165,13 @@ export function localReviewAgent({ facts, items, documents = [], rules, flags = 
   const hours = facts.wfhHours?.value || 0;
   if (hours > 2000) {
     const out = use('The hours look high, so check the effect of a full-time year (1,900 hours).', 'recalculate', { wfhHours: 1900 });
-    notes.push({ severity: 'medium', message: `${hours.toLocaleString('en-AU')} hours is more than a full-time year. ${out.text}`, refs: facts.wfhHours?.refs?.slice(0, 1) || [] });
+    notes.push({ severity: 'medium', message: `${hours.toLocaleString('en-AU')} hours is more than a full-time year.${out.text ? ` ${out.text}` : ''}`, refs: facts.wfhHours?.refs?.slice(0, 1) || [] });
     clientQuestions.push('Your timesheet shows more hours than a full-time year. Could you confirm the hours worked from home?');
   }
   const open = questions.filter((q) => !answers[q.id]);
   for (const q of open) {
     const out = use(`"${q.text}" is unanswered, so check how much it matters if only half is for work.`, 'recalculate', { assetWorkUse: { [q.assetId]: 50 } });
-    notes.push({ severity: 'medium', message: `The client hasn't said how much they use this item for work. ${out.text}`, refs: q.refs || [] });
+    notes.push({ severity: 'medium', message: `The client hasn't said how much they use this item for work.${out.text ? ` ${out.text}` : ''}`, refs: q.refs || [] });
     clientQuestions.push(q.text.replace(/^Do you/, 'Could you confirm whether you'));
   }
   for (const f of flags.filter((x) => ['AGENTS_DISAGREE', 'AI_UNVERIFIED', 'AI_DOUBTS_CLAIM', 'ASSET_NO_DATE', 'LOW_OCR_CONFIDENCE', 'HIGH_DEDUCTION_RATIO'].includes(x.code))) {
