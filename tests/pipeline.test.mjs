@@ -52,7 +52,21 @@ test('sample documents produce the Use Case 1 result', { skip: !pdfjsLib && 'pdf
   assert.equal(swarm.facts.assets[0].purchaseDate, '2025-12-29');
   assert.equal(swarm.facts.assets[0].assetType, 'office_chair');
   assert.equal(swarm.facts.coveredExpenses.length, 3);
-  assert.equal(swarm.reports.length, 5, 'five agents report back');
+  assert.equal(swarm.reports.length, 6, 'the triage agent and five specialists report back');
+  assert.ok(swarm.reports.every((r) => r.steps.length), 'every agent records its steps');
+
+  // Triage: each document is recognised and routed to the right specialist
+  const kinds = Object.fromEntries(swarm.documents.map((d) => [d.docName, d.kind]));
+  assert.equal(kinds['income-statement-2025-26.pdf'], 'income_statement');
+  assert.equal(kinds['wfh-timesheet-2025-26.csv'], 'wfh_timesheet');
+  assert.deepEqual(swarm.documents.find((d) => d.kind === 'income_statement').routedTo, ['employment']);
+
+  // Deduction decisions: hours claimed at the fixed rate, chair over $300 depreciated, bills covered
+  const byId = Object.fromEntries(swarm.decisions.map((d) => [d.id, d]));
+  assert.equal(byId.wfh.decision, 'claim');
+  assert.equal(swarm.decisions.filter((d) => d.decision === 'covered').length, 3);
+  assert.equal(swarm.decisions.find((d) => d.id.startsWith('asset:')).method, 'decline_in_value');
+  assert.equal(swarm.questions.length, 0, 'office furniture needs no question');
 
   // Every fact points back to a real source line (source lineage)
   const ids = new Set(raw.map((i) => i.id));

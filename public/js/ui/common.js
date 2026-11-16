@@ -134,7 +134,8 @@ export function escapeHtml(s) {
 export function html(strings, ...values) {
   return strings.reduce((out, str, i) => {
     const v = values[i - 1];
-    const safe = v && v.__html ? v.__html : Array.isArray(v) ? v.map((x) => (x && x.__html) ?? escapeHtml(x)).join('') : escapeHtml(v);
+    const isRaw = (x) => x != null && typeof x === 'object' && '__html' in x;
+    const safe = isRaw(v) ? v.__html : Array.isArray(v) ? v.map((x) => (isRaw(x) ? x.__html : escapeHtml(x))).join('') : escapeHtml(v);
     return out + safe + str;
   });
 }

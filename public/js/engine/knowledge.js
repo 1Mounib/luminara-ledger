@@ -38,6 +38,11 @@ export const KNOWLEDGE_ITEMS = [
     topic: 'private health',
     keywords: ['health', 'insurance', 'surcharge', 'mls', 'medicare levy surcharge'],
     text: 'Medicare levy surcharge: singles earning above about $101,000 (2025-26) without private hospital cover may pay an extra 1% to 1.5%. Upload your private health insurance statement so your accountant can check this.'
+  },
+  {
+    topic: 'tax agent',
+    keywords: ['tax agent', 'replace', 'lodge', 'accountant', 'registered'],
+    text: 'TaxMate does not replace a tax agent. Its AI agents read and sort the documents and prepare a checked draft; a registered tax agent (your accountant) reviews it, signs it off and lodges it. In Australia only a registered tax agent can prepare a return for a fee.'
   }
 ];
 

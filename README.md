@@ -20,6 +20,22 @@ NIT3004 IT Capstone Project 2, Victoria University · TaxMate Development team.
 
 **Sovereign Mode** (the toggle in the top bar) keeps all AI on the device: no document text goes to the cloud AI.
 
+## The agents (updated 16 Nov 2026)
+
+TaxMate supports a registered tax agent; it doesn't replace one. The AI agents do the reading, sorting and first judgement, the rules engine does the maths, and the accountant decides.
+
+| Agent | What it decides or does |
+| --- | --- |
+| Document Triage Agent | Works out what each document is and routes it to the right specialist |
+| Employment Income Agent | Finds salary and tax withheld, citing the line |
+| Deduction Extraction Agent | Finds hours, equipment and bills, decides how each is claimed, and asks the taxpayer when work use is unclear |
+| Investment / Rental agents | Report those documents (out of scope for calculation) |
+| Tax Compliance Agent | Flags what the ATO would question and scores audit risk |
+| Coordinator | Checks every AI value against its source line and against the on-device rules |
+| Review Agent (accountant) | Uses tools (read a document, re-run the rules engine "what if", look up an ATO rule) to recommend approve, adjust or ask the client, with a draft message |
+
+Each figure shows its **validation checks** (found in the document, two engines agree, ATO rule applied, looks reasonable, taxpayer answered, accountant approved). Every agent's steps are shown in **What the agents did**.
+
 ## Project layout
 
 ```

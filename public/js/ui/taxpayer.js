@@ -6,6 +6,11 @@ import { createMaskingSession, detectUnmaskedPII } from '../engine/redact.js';
 import { saveSecret, loadSecret } from '../engine/vault.js';
 import { STAGES, ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
 import { openViewer } from './viewer.js';
+import { validateLine } from '../engine/validate.js';
+import { calculateReturn } from '../engine/taxEngine.js';
+import { toEngineInput } from '../engine/facts.js';
+import { DECISION_WORDS, KIND_LABELS, AGENT_NAMES } from '../engine/localAgents.js';
+import { activityHtml } from './agentsView.js';
 import { createCopilot } from './copilot.js';
 import { gmailConfigured, importFromGmail } from './gmail.js';
 
@@ -24,8 +29,10 @@ const state = {
   analysis: null,
   result: null,
   payload: null,   // the exact data last sent to the cloud
-  cloudAi: false
+  cloudAi: false,
+  rules: null      // tax rules for the year (used by the validation checks and answers)
 };
+loadRules(state.financialYear).then((r) => { state.rules = r; renderPosition(); }).catch(() => {});
 const masking = createMaskingSession({ knownNames: [user.name] });
 
 // ------------------------------------------------------------ my returns
@@ -170,6 +177,7 @@ function renderDocs() {
         <small>${d.stage === 'Ready'
           ? raw(`${d.lines} lines read, <span class="mask-count">${d.maskedCount} private details hidden</span>${d.ocr ? `. Read with OCR (${d.confidence}% confidence)` : ''}${d.lines === 0 ? '. <b class="warn-text">No text found</b>' : ''}`)
           : d.error || d.stage}</small>
+        ${raw(triageNote(d.docId))}
       </div>
       ${d.stage === 'Ready' ? raw(`<button class="btn ghost small" data-view="${escapeHtml(d.docId)}">View</button>`) : ''}
     </li>`).join('') || '<li class="empty">No documents yet.</li>';
@@ -196,6 +204,7 @@ $('#analyseBtn').addEventListener('click', async () => {
     const out = await analyse({ docs: state.docs, masked: state.masked, rules, useCloud, onStage: (s) => setPipeline(s, s === 'Review ready') });
     state.analysis = out.analysis;
     state.result = out.result;
+    state.rules = rules;
     state.payload = out.payload;
     state.returnId ??= `R-${Date.now().toString(36).toUpperCase()}`;
     await persist().catch((error) => toast(`Analysed, but saving failed: ${error.message}`, 'error'));
@@ -211,6 +220,15 @@ $('#analyseBtn').addEventListener('click', async () => {
     renderDocs();
   }
 });
+
+/** What the triage agent decided for this document (after an analysis). */
+function triageNote(docId) {
+  const t = state.analysis?.documents?.find((x) => x.docId === docId);
+  if (!t) return '';
+  const label = KIND_LABELS[t.aiKind || t.kind] || 'Document';
+  const to = (t.routedTo || []).map((k) => AGENT_NAMES[k]).join(', ');
+  return `<small class="triage">Triage agent: ${escapeHtml(label)}${to ? ` → ${escapeHtml(to)}` : ' (not used for this claim)'}</small>`;
+}
 
 async function persist() {
   const ready = state.docs.filter((d) => d.stage === 'Ready');
@@ -244,7 +262,7 @@ function renderPosition() {
   const refund = t.refund >= 0;
   const flags = [...a.flags].sort((x, y) => rank(x.severity) - rank(y.severity));
   const lines = state.result.lines;
-  const pick = (fn) => lines.filter(fn).map((l) => raw(lineHtml(l, a.facts)));
+  const pick = (fn) => lines.filter(fn).map((l) => raw(lineHtml(l, a)));
   const row = (cls, label, amount) => raw(`<tr class="${cls}"><td>${escapeHtml(label)}</td><td class="amt">${amount}</td><td class="src"></td></tr>`);
   const risk = ['', 'low', 'medium', 'high'][riskBand(a.riskScore)];
 
@@ -255,6 +273,7 @@ function renderPosition() {
       <p class="summary-text">Your employer withheld ${money(t.taxWithheld)} in tax. Your tax works out to ${money(t.netTax)}, so ${refund ? `you should get ${money(t.refund)} back` : `you may need to pay ${money(-t.refund)}`}.</p>
       <p class="summary-risk">Audit risk: <b class="risk r${riskBand(a.riskScore)}">${risk}</b> (${a.riskScore} out of 100)</p>
     </div>
+    ${raw(questionsHtml(a))}
     <div class="flags">${flags.map((f) => raw(flagHtml(f)))}</div>
     <h3>How it was worked out</h3>
     <table class="lines">
@@ -273,12 +292,10 @@ function renderPosition() {
       </tbody>
     </table>
     ${a.aiNotes?.length ? raw(`<h3>Notes from the compliance check <span class="tag">AI suggestion</span></h3><div class="flags">${a.aiNotes.map(flagHtml).join('')}</div>`) : ''}
-    <details class="agents-box">
-      <summary>How your documents were read (${a.reports.length} AI agents, ${a.mode === 'dual-engine' ? 'cloud and on-device' : 'on this device only'})</summary>
-      <ul class="agents">${a.reports.map((r) => raw(`<li><b>${escapeHtml(r.agent)}</b><span>${escapeHtml(r.summary)}</span><small>${escapeHtml(r.engine)}, ${(r.ms / 1000).toFixed(1)} s</small></li>`))}</ul>
-    </details>`;
+    ${raw(activityHtml(a))}`;
 
-  $$('[data-refs]', panel).forEach((el) => el.addEventListener('click', () => showSource(el.dataset.refs.split(','), el.dataset.caption)));
+  $$('[data-refs]', panel).forEach((el) => el.addEventListener('click', () => showSource(el.dataset.refs.split(','), el.dataset.caption, el.dataset.line)));
+  $$('[data-answer]', panel).forEach((b) => b.addEventListener('click', () => answerQuestion(b.dataset.q, b.dataset.answer, b)));
   const submit = $('#submitBtn');
   submit.hidden = false;
   submit.disabled = state.status !== 'draft';
@@ -299,16 +316,75 @@ function renderProgress() {
   });
 }
 
-function lineHtml(l, facts) {
+function lineHtml(l, a) {
+  const facts = a.facts;
   const refs = l.sourceRefs || [];
   const origin = originOf(l, facts);
   const minus = (l.kind === 'offset' || l.kind === 'deduction') && l.amount > 0;
   const amount = l.kind === 'info' ? '<span class="muted">not claimed</span>' : `${minus ? '&minus;' : ''}${money(l.amount)}`;
+  const decision = (a.decisions || []).find((d) => d.id === l.key);
+  const v = validateLine(l, validationContext());
+  const badge = v ? `<span class="v-badge ${v.status}" title="${escapeHtml(v.checks.map((c) => `${c.state === 'ok' ? '✓' : c.state === 'fail' ? '!' : '…'} ${c.label}`).join('\n'))}">${v.status === 'review' ? '!' : '✓'} ${escapeHtml(v.label)}</span>` : '';
   return `<tr class="k-${l.kind}">
-    <td><b>${escapeHtml(l.label)}</b><small>${escapeHtml(l.formula)}</small><small class="law">${escapeHtml(l.legalBasis)}${origin ? `. <span class="origin">Found by: ${escapeHtml(origin)}</span>` : ''}</small></td>
-    <td class="amt">${amount}</td>
-    <td class="src">${refs.length ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-caption="${escapeHtml(l.label)}">Source</button>` : ''}</td>
+    <td><b>${escapeHtml(l.label)}</b><small>${escapeHtml(l.formula)}</small><small class="law">${escapeHtml(l.legalBasis)}${origin ? `. <span class="origin">Found by: ${escapeHtml(origin)}</span>` : ''}</small>${decision ? `<small class="why">Deduction agent: ${escapeHtml(DECISION_WORDS[decision.decision] || decision.decision)}. ${escapeHtml(decision.aiReason || decision.reason)}</small>` : ''}</td>
+    <td class="amt">${amount}${badge}</td>
+    <td class="src">${refs.length || v ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-line="${escapeHtml(l.key)}" data-caption="${escapeHtml(l.label)}">${refs.length ? 'Source' : 'Checks'}</button>` : ''}</td>
   </tr>`;
+}
+
+/** Everything the validation checks need to know about this return. */
+function validationContext() {
+  return {
+    facts: state.analysis?.facts, items: state.items, answers: state.analysis?.answers || {}, questions: state.analysis?.questions || [],
+    status: state.status, approvedBy: existing?.approvedBy, approvedAt: existing?.approvedAt, rules: state.rules
+  };
+}
+
+/** Questions the agents need answered before the claim is final. */
+function questionsHtml(a) {
+  const qs = a.questions || [];
+  if (!qs.length) return '';
+  const answers = a.answers || {};
+  const locked = state.status !== 'draft';
+  return `<section class="questions"><h3>The agents need your answer</h3>
+    ${qs.map((q) => {
+      const ans = answers[q.id];
+      return `<div class="question ${ans ? 'answered' : ''}">
+        <p><b>${escapeHtml(q.text)}</b><small>${escapeHtml(q.why || '')} Asked by the ${q.fromAi ? 'cloud AI ' : ''}Deduction agent.</small></p>
+        ${ans ? `<p class="answer">Your answer: ${escapeHtml(ans.label)}${locked ? '' : ` <button class="link" data-q="${escapeHtml(q.id)}" data-answer="change">Change</button>`}</p>`
+          : locked ? '<p class="answer muted">Not answered.</p>' : `<div class="answer-buttons">
+            <button class="btn small" data-q="${escapeHtml(q.id)}" data-answer="100">Only for work</button>
+            <button class="btn small" data-q="${escapeHtml(q.id)}" data-answer="part">Partly for work</button>
+            <button class="btn small" data-q="${escapeHtml(q.id)}" data-answer="0">Not for work</button></div>`}
+      </div>`;
+    }).join('')}</section>`;
+}
+
+/** The taxpayer's answer changes the work-use share; the rules engine then recalculates. */
+async function answerQuestion(qid, choice) {
+  const a = state.analysis;
+  const q = a.questions.find((x) => x.id === qid);
+  if (!q) return;
+  if (choice === 'change') { delete a.answers[qid]; renderPosition(); return; }
+  let pct = Number(choice);
+  if (choice === 'part') {
+    const raw = prompt('Roughly what percentage is for work? (1 to 99)', '50');
+    pct = Number(raw);
+    if (!raw || !(pct > 0 && pct < 100)) return toast('Enter a number between 1 and 99.', 'warn');
+  }
+  const asset = a.facts.assets.find((x) => x.id === q.assetId);
+  if (!asset) return;
+  const before = state.result.totals.refund;
+  const previous = asset.workUsePercent ?? 100;
+  asset.workUsePercent = pct;
+  a.answers = { ...(a.answers || {}), [qid]: { workUsePercent: pct, label: pct === 100 ? 'only for work (100%)' : pct === 0 ? 'not for work (0%)' : `partly for work (${pct}%)`, at: new Date().toISOString() } };
+  const rules = state.rules || await loadRules(state.financialYear);
+  state.result = calculateReturn(toEngineInput(a.facts), rules);
+  await persist().catch((error) => toast(`Saved on screen, but saving failed: ${error.message}`, 'error'));
+  await ledger.append({ action: 'answered agent question', returnId: state.returnId, field: `assets.${asset.description}.workUsePercent`, from: previous, to: pct, justification: q.text }).catch(() => {});
+  renderPosition();
+  const after = state.result.totals.refund;
+  toast(after === before ? 'Answer saved. Your estimate is unchanged.' : `Answer saved and recalculated: ${after >= 0 ? 'refund' : 'owing'} ${money(Math.abs(after))}.`, 'ok');
 }
 
 function originOf(line, facts) {
@@ -324,11 +400,17 @@ function flagHtml(f) {
   return `<div class="flag ${f.severity}"><span class="sev">${{ high: 'Action needed', medium: 'Please check', info: 'Good to know' }[f.severity] || 'Good to know'}</span><p>${escapeHtml(f.message)}</p>${refs.length ? `<button class="src-chip" data-refs="${escapeHtml(refs.join(','))}" data-caption="Flag source">Source</button>` : ''}</div>`;
 }
 
-function showSource(refs, caption) {
+function showSource(refs, caption, lineKey) {
+  refs = refs.filter(Boolean);
+  const line = lineKey ? state.result?.lines.find((l) => l.key === lineKey) : null;
+  const validation = line ? validateLine(line, validationContext()) : null;
   const first = state.items.find((i) => i.id === refs[0]);
-  if (!first) return toast('Source line not found.', 'warn');
+  if (!first) {
+    if (!validation) return toast('Source line not found.', 'warn');
+    return openViewer({ docName: caption, items: [] }, [], 'Calculated by the rules engine', validation);
+  }
   const doc = state.docs.find((d) => d.docId === first.docId);
-  openViewer({ ...doc, items: state.items }, refs.filter((r) => r.startsWith(first.docId)), caption);
+  openViewer({ ...doc, items: state.items }, refs.filter((r) => r.startsWith(first.docId)), caption, validation);
 }
 
 const rank = (s) => ({ high: 0, medium: 1, info: 2 }[s] ?? 3);

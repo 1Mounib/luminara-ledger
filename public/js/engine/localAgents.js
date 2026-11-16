@@ -13,6 +13,7 @@
  */
 
 export const AGENT_NAMES = {
+  triage: 'Document Triage Agent',
   employment: 'Employment Income Agent',
   investment: 'Investment Income Agent',
   rental: 'Rental Property Agent',
@@ -61,6 +62,37 @@ export function classifyDocument(items) {
   return 'other';
 }
 
+/** Plain-English names for each kind of document. */
+export const KIND_LABELS = {
+  income_statement: 'Income statement',
+  wfh_timesheet: 'Work-from-home timesheet',
+  dividend_statement: 'Dividend statement',
+  rental_statement: 'Rental statement',
+  private_health: 'Private health insurance statement',
+  asset_receipt: 'Receipt for work equipment',
+  bill_electricity: 'Electricity bill',
+  bill_internet: 'Internet bill',
+  bill_phone: 'Phone bill',
+  other: 'Unrecognised document'
+};
+
+/** Which specialist agent(s) each kind of document is sent to. Compliance always sees everything. */
+export const ROUTES = {
+  income_statement: ['employment'],
+  wfh_timesheet: ['deduction'],
+  asset_receipt: ['deduction'],
+  bill_electricity: ['deduction'],
+  bill_internet: ['deduction'],
+  bill_phone: ['deduction'],
+  dividend_statement: ['investment'],
+  rental_statement: ['rental'],
+  private_health: [],
+  other: []
+};
+
+/** Asset types whose personal use is common, so the taxpayer is asked about work use. */
+const ASK_WORK_USE = ['laptop', 'mobile_phone', 'monitor', 'printer', 'other'];
+
 function hoursKey(cells) {
   return Object.keys(cells).find((k) => /hours/i.test(k));
 }
@@ -86,36 +118,68 @@ function findLabelledAmount(items, labelRegex) {
   return null;
 }
 
-// ---------------------------------------------------------------- the 5 agents
+// ---------------------------------------------------------------- the agents
+
+/**
+ * Document Triage Agent: decides what each document is and which specialist
+ * agent should read it. Every agent reports the steps it took ("steps"), so
+ * the app can show what each agent did.
+ */
+export function triageAgent(docs) {
+  const documents = docs.map((d) => {
+    const routedTo = d.kind === 'other' ? [] : ROUTES[d.kind] || [];
+    return {
+      docId: d.docId, docName: d.docName, kind: d.kind, label: KIND_LABELS[d.kind] || KIND_LABELS.other,
+      routedTo, refs: d.items.slice(0, 1).map((i) => i.id)
+    };
+  });
+  const steps = documents.map((d) => `${d.docName}: ${d.label}${d.routedTo.length ? `, sent to the ${d.routedTo.map((k) => AGENT_NAMES[k]).join(' and ')}` : ', not used for this claim'}.`);
+  const unknown = documents.filter((d) => d.kind === 'other').length;
+  return {
+    findings: { documents },
+    steps,
+    summary: `Sorted ${documents.length} document(s)${unknown ? `; ${unknown} could not be recognised` : ''}.`
+  };
+}
 
 /** FR-010: salary and tax withheld from the income statement. */
 export function employmentAgent(docs) {
   const findings = { salary: null, taxWithheld: null };
-  for (const doc of docs.filter((d) => d.kind === 'income_statement')) {
+  const mine = docs.filter((d) => d.kind === 'income_statement');
+  for (const doc of mine) {
     findings.salary ??= findLabelledAmount(doc.items, /gross (payments|salary|wages)|salary and wages/i);
     findings.taxWithheld ??= findLabelledAmount(doc.items, /tax withheld|payg withholding/i);
   }
+  const steps = [mine.length ? `Read ${mine.length} income statement(s).` : 'No income statement was sent to me.'];
+  if (findings.salary) steps.push(`Found gross salary of $${findings.salary.value.toLocaleString('en-AU')} on line ${findings.salary.refs[0]}.`);
+  if (findings.taxWithheld) steps.push(`Found tax withheld of $${findings.taxWithheld.value.toLocaleString('en-AU')} on line ${findings.taxWithheld.refs[0]}.`);
   const summary = findings.salary
     ? `Found salary of $${findings.salary.value.toLocaleString()} and tax withheld of $${(findings.taxWithheld?.value ?? 0).toLocaleString()}.`
     : 'No income statement found.';
-  return { findings, summary };
+  return { findings, summary, steps };
 }
 
 /** FR-011 (out of scope for WFH release): reports whether investment documents exist. */
 export function investmentAgent(docs) {
   const n = docs.filter((d) => d.kind === 'dividend_statement').length;
-  return { findings: {}, summary: n ? `${n} dividend statement(s) found - investment income is not part of this release.` : 'No investment income documents found.' };
+  return { findings: {}, steps: [n ? `Received ${n} dividend statement(s); investment income is not calculated in this release.` : 'No investment documents were sent to me.'], summary: n ? `${n} dividend statement(s) found - investment income is not part of this release.` : 'No investment income documents found.' };
 }
 
 /** FR-012 (out of scope for WFH release). */
 export function rentalAgent(docs) {
   const n = docs.filter((d) => d.kind === 'rental_statement').length;
-  return { findings: {}, summary: n ? `${n} rental statement(s) found - rental property is not part of this release.` : 'No rental property documents found.' };
+  return { findings: {}, steps: [n ? `Received ${n} rental statement(s); rental property is not calculated in this release.` : 'No rental documents were sent to me.'], summary: n ? `${n} rental statement(s) found - rental property is not part of this release.` : 'No rental property documents found.' };
 }
 
-/** FR-013: WFH hours, work assets, and running-cost bills. */
+/**
+ * FR-013: WFH hours, work assets and running-cost bills - and a DECISION for
+ * each one: claim it (and how), treat it as covered by the fixed rate, or ask
+ * the taxpayer a question first. Decisions never change numbers by themselves;
+ * the taxpayer's answer does, through the rules engine.
+ */
 export function deductionAgent(docs) {
   const findings = { wfhHours: null, assets: [], coveredExpenses: [] };
+  const steps = [];
 
   for (const doc of docs) {
     if (doc.kind === 'wfh_timesheet') {
@@ -123,16 +187,21 @@ export function deductionAgent(docs) {
       const total = doc.items.find((i) => /total.*hours|hours.*total/i.test(i.text));
       let hours = 0;
       const refs = [];
+      let rows = 0;
       for (const item of doc.items) {
         if (!item.cells || /total/i.test(Object.values(item.cells)[0] || '')) continue;
         const key = hoursKey(item.cells);
         const location = Object.entries(item.cells).find(([k]) => /location|where/i.test(k))?.[1] || 'home';
         const h = Number(String(item.cells[key]).replace(/[^\d.]/g, ''));
-        if (key && h > 0 && /home/i.test(location)) { hours += h; refs.push(item.id); }
+        if (key && h > 0 && /home/i.test(location)) { hours += h; refs.push(item.id); rows += 1; }
       }
+      if (rows) steps.push(`Added up ${rows} work-from-home rows in "${doc.docName}": ${Math.round(hours * 100) / 100} hours.`);
       if (total) {
         const stated = Number((total.text.match(/(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(hours|hrs)?\s*$/i) || [])[1]?.replace(/,/g, ''));
-        if (stated) { hours = stated; refs.unshift(total.id); }
+        if (stated) {
+          steps.push(`The timesheet states a total of ${stated} hours${rows && Math.abs(stated - hours) > 0.01 ? `, which differs from the rows (${Math.round(hours * 100) / 100})` : ''}; using the stated total.`);
+          hours = stated; refs.unshift(total.id);
+        }
       }
       if (hours > 0) findings.wfhHours = { value: Math.round(hours * 100) / 100, refs: refs.slice(0, 60) };
     }
@@ -163,11 +232,62 @@ export function deductionAgent(docs) {
       }
     }
   }
+
+  const { decisions, questions } = decideClaims(findings);
+  for (const d of decisions) steps.push(`${d.item}: ${DECISION_WORDS[d.decision]}. ${d.reason}`);
+  if (questions.length) steps.push(`Asked you ${questions.length} question(s) before the claim is final.`);
+
   const parts = [];
   if (findings.wfhHours) parts.push(`${findings.wfhHours.value.toLocaleString()} WFH hours`);
   if (findings.assets.length) parts.push(`${findings.assets.length} work asset(s)`);
   if (findings.coveredExpenses.length) parts.push(`${findings.coveredExpenses.length} running-cost bill(s)`);
-  return { findings, summary: parts.length ? `Found ${parts.join(', ')}.` : 'No deduction evidence found.' };
+  return {
+    findings: { ...findings, decisions, questions },
+    steps,
+    summary: parts.length ? `Found ${parts.join(', ')} and decided how to claim each.` : 'No deduction evidence found.'
+  };
+}
+
+export const DECISION_WORDS = {
+  claim: 'claim it',
+  covered: 'covered by the fixed rate, not claimed again',
+  ask: 'need your answer first',
+  missing: 'cannot claim yet',
+  not_claimable: 'not claimable'
+};
+
+/** The Deduction agent's judgement for each item it found (rules version). */
+export function decideClaims(findings) {
+  const decisions = [];
+  const questions = [];
+  if (findings.wfhHours) {
+    decisions.push({ id: 'wfh', item: 'Work-from-home hours', decision: 'claim', method: 'fixed_rate',
+      reason: 'There is a record of actual hours, so the 70c-per-hour fixed rate can be used.', rule: 'ATO fixed rate method (PCG 2023/1)', refs: findings.wfhHours.refs.slice(0, 1) });
+  } else {
+    decisions.push({ id: 'wfh', item: 'Work-from-home hours', decision: 'missing', method: 'fixed_rate',
+      reason: 'No timesheet, roster or diary of actual hours was found, and the ATO does not accept estimates.', rule: 'ATO fixed rate method record-keeping (PCG 2023/1)', refs: [] });
+  }
+  for (const a of findings.assets || []) {
+    const big = a.cost > 300;
+    const ask = ASK_WORK_USE.includes(a.assetType);
+    decisions.push({
+      id: `asset:${a.id}`, item: a.description, decision: ask ? 'ask' : 'claim', method: big ? 'decline_in_value' : 'immediate',
+      reason: `${big ? 'It cost more than $300, so it is claimed over its effective life (decline in value)' : 'It cost $300 or less, so it can be claimed in full this year'}.${ask ? ' Items like this are often used personally too, so the work-use share is needed.' : ' Home office furniture, assumed 100% work use.'}`,
+      rule: big ? 'ITAA 1997 Div 40 (decline in value)' : 'ITAA 1997 s 40-80(2) (items $300 or less)', refs: a.refs
+    });
+    if (ask) {
+      questions.push({
+        id: `q-${a.id}`, assetId: a.id, agent: 'deduction', refs: a.refs,
+        text: `Do you use the ${a.description.toLowerCase()} only for work?`,
+        why: 'Only the work-use share can be claimed. Until you answer, it is counted as 100% work use.'
+      });
+    }
+  }
+  for (const e of findings.coveredExpenses || []) {
+    decisions.push({ id: `covered:${e.id}`, item: e.description, decision: 'covered', method: 'fixed_rate',
+      reason: 'The 70c-per-hour rate already includes energy, internet and phone costs.', rule: 'ATO fixed rate method (PCG 2023/1)', refs: e.refs });
+  }
+  return { decisions, questions };
 }
 
 /** FR-014 / FR-024: risk checks and requests for missing documents. */
@@ -190,15 +310,23 @@ export function complianceAgent(facts, docs, rules, ocrWarnings = []) {
   const totalClaims = hours * rules.workFromHome.fixedRatePerHour + (facts.assets || []).reduce((s, a) => s + (a.cost || 0), 0);
   if (salary && totalClaims / salary > 0.1) flags.push({ severity: 'medium', code: 'HIGH_DEDUCTION_RATIO', message: 'Work-from-home claims are above 10% of salary, which is higher than typical. An accountant should review the evidence.' });
   for (const w of ocrWarnings) flags.push({ severity: 'medium', code: 'LOW_OCR_CONFIDENCE', message: `"${w.docName}" was read with ${w.confidence}% confidence (below 85%). Check the extracted values by hand.`, refs: w.refs });
+  const unknown = docs.filter((d) => d.kind === 'other');
+  if (unknown.length) flags.push({ severity: 'info', code: 'UNRECOGNISED_DOC', message: `${unknown.length} document(s) could not be recognised and were not used: ${unknown.map((d) => d.docName).join(', ')}.` });
 
   const serious = flags.filter((f) => f.severity === 'high' || f.severity === 'medium').length;
   const riskScore = Math.min(100, flags.reduce((s, f) => s + ({ high: 35, medium: 15, info: 0 }[f.severity] || 0), 5));
-  return { flags, riskScore, summary: serious ? `${serious} item(s) need attention.` : 'No compliance issues found.' };
+  const steps = [
+    `Checked ${docs.length} document(s) and ${(facts.assets || []).length + (facts.wfhHours ? 1 : 0) + (facts.salary ? 1 : 0)} figure(s) against the ATO record-keeping and claim rules.`,
+    ...flags.map((f) => `${{ high: 'Action needed', medium: 'Please check', info: 'Note' }[f.severity]}: ${f.message}`),
+    `Audit risk score: ${riskScore} out of 100.`
+  ];
+  return { flags, riskScore, steps, summary: serious ? `${serious} item(s) need attention.` : 'No compliance issues found.' };
 }
 
 /**
- * The Coordinator (FR-015): runs the agents and merges their answers into
- * one "facts" object for the deterministic tax engine.
+ * The Coordinator (FR-015): runs the agents in order - triage first, then the
+ * specialists on the documents routed to them, then compliance on everything -
+ * and merges their answers into one "facts" object for the tax engine.
  */
 export function runLocalSwarm(items, rules, ocrWarnings = []) {
   const docs = groupByDoc(items);
@@ -206,20 +334,25 @@ export function runLocalSwarm(items, rules, ocrWarnings = []) {
   const time = (name, fn) => {
     const t0 = Date.now();
     const out = fn();
-    reports.push({ agent: AGENT_NAMES[name], engine: 'Local rules (on device)', summary: out.summary, ms: Date.now() - t0 });
+    reports.push({ key: name, agent: AGENT_NAMES[name], engine: 'Local rules (on device)', summary: out.summary, steps: out.steps || [], ms: Date.now() - t0 });
     return out;
   };
-  const employment = time('employment', () => employmentAgent(docs));
-  time('investment', () => investmentAgent(docs));
-  time('rental', () => rentalAgent(docs));
-  const deduction = time('deduction', () => deductionAgent(docs));
-  const facts = { ...employment.findings, ...deduction.findings };
+  const triage = time('triage', () => triageAgent(docs));
+  const routedFor = (key) => docs.filter((d) => (ROUTES[d.kind] || []).includes(key));
+  const employment = time('employment', () => employmentAgent(routedFor('employment')));
+  time('investment', () => investmentAgent(routedFor('investment')));
+  time('rental', () => rentalAgent(routedFor('rental')));
+  const deduction = time('deduction', () => deductionAgent(routedFor('deduction')));
+  const { decisions, questions, ...deductionFacts } = deduction.findings;
+  const facts = { ...employment.findings, ...deductionFacts };
   const compliance = time('compliance', () => complianceAgent(facts, docs, rules, ocrWarnings));
   return {
     facts,
     flags: compliance.flags,
     riskScore: compliance.riskScore,
-    documents: docs.map((d) => ({ docId: d.docId, docName: d.docName, kind: d.kind })),
+    documents: triage.findings.documents,
+    decisions,
+    questions,
     reports
   };
 }

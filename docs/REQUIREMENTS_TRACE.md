@@ -16,9 +16,9 @@ Status: ✅ done · 🟡 partly done (with justification) · ⏳ planned (see RO
 | FR-010 | Employment Income Agent | ✅ | Cloud and on-device versions. |
 | FR-011 | Investment Income Agent | ✖ | Present in the swarm. It reports documents but doesn't calculate (WFH scope). |
 | FR-012 | Rental Property Agent | ✖ | Same as above. |
-| FR-013 | Deduction Agent (WFH, assets over $300) | ✅ | Fixed rate (70c), with immediate deduction or decline in value. |
+| FR-013 | Deduction Agent (WFH, assets over $300) | ✅ | Fixed rate (70c), with immediate deduction or decline in value. **16 Nov:** the agent also decides each item (claim, covered, ask) with its reason and ATO rule, and asks the taxpayer about work use. |
 | FR-014 | Compliance Agent, risk score | ✅ | Deterministic checks plus AI advisory notes. Risk score from 0 to 100. |
-| FR-015 | Coordinator | ✅ | `coordinator.js` adds the hallucination guard and the disagreement flag. |
+| FR-015 | Coordinator | ✅ | `coordinator.js` adds the hallucination guard and the disagreement flag. **16 Nov:** a Document Triage Agent runs first and the coordinator routes each document to the right specialist; it reports its checks (values found, rejected, agreed). |
 | FR-016 | No LLM arithmetic | ✅ | The AI even hands timesheet hours back for code to add up. |
 | FR-017 | Brackets, LITO, Medicare, MLS, SAPTO | 🟡 | Brackets, LITO and Medicare are done. MLS is a flag only. SAPTO is out of scope. |
 | FR-018 | Rules in versioned JSON | ✅ | `public/rules/fy2025-26.json`, `fy2024-25.json`. |
@@ -27,7 +27,7 @@ Status: ✅ done · 🟡 partly done (with justification) · ⏳ planned (see RO
 | FR-021 | Side-by-side source highlighting | ✅ | Hover a field and its source line is highlighted. |
 | FR-022 | ATO XML and PDF audit dossier | 🟡 | Printable audit dossier and JSON export. ATO XML (SBR) needs DSP accreditation. |
 | FR-023 | Copilot explains and cites law | ✅ | Cloud and on-device modes. |
-| FR-024 | Active capture of missing documents | ✅ | Copilot nudges with an upload button. |
+| FR-024 | Active capture of missing documents | ✅ | Copilot nudges with an upload button. **16 Nov:** agents also ask the taxpayer questions; answers change the claim through the rules engine and are logged. |
 | NFR-001 | Local-only mode | ✅ | Sovereign Mode makes zero network calls (verified in testing). |
 | NFR-002 | Level-2 PII masking + encrypted map | ✅ | Checksums, labelled fields and an AES-GCM token map. The NER model is replaced by rules. |
 | NFR-003 | AES-256 at rest, TLS in transit | ✅ | Vault on the device. Vercel serves HTTPS. |
@@ -35,8 +35,11 @@ Status: ✅ done · 🟡 partly done (with justification) · ⏳ planned (see RO
 | NFR-005 | 99.9% availability | 🟡 | Vercel hosting, plus fallback to on-device agents if the AI is down. |
 | NFR-007 | Plain-language errors | ✅ | Toasts and flags. |
 | NFR-008 | ≤45 s per document | ✅ | To be measured in the analysis report. |
-| NFR-010 | Source lineage for every value | ✅ | "Source" chips. |
+| NFR-010 | Source lineage for every value | ✅ | "Source" chips. **16 Nov:** every figure shows validation checks (found in source, engines agree, rule, sense check, answers, approval). |
 | NFR-011 | Override with justification, audit | ✅ | Justification is required. The ledger records the field, old and new values, user, time and refs. |
 | NFR-012 | Immutable audit log, 12 months | ✅ | `audit_log` table: append-only (no update or delete for any user), with the SHA-256 chain computed by the database and `verify_audit_chain()`. Retention is the database's (no automatic deletion). |
 | NFR-013 | One-command Docker on VPS | ✖ | Replaced by Vercel git deploy, which is simpler for the client and free. |
 | NFR-014 | nomic-embed-text embeddings | ✖ | Not needed for the WFH scope. |
+
+
+**Added 16 Nov 2026 (teacher feedback):** Review Agent for the accountant (tool-using: `read_document`, `recalculate`, `lookup_rule`, `finish`), on-device fallback, and a visible "What the agents did" panel.

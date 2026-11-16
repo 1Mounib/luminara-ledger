@@ -3,12 +3,15 @@
  * verification, NFR-011 overrides with justification, audit ledger).
  * Nothing is "lodged" until the accountant approves (Human Control Always).
  */
-import { requireRole, renderHeader, listReturns, getReturn, saveReturn, getLedger, isCloud, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
+import { requireRole, renderHeader, listReturns, getReturn, saveReturn, getLedger, isCloud, cloudStatus, money, html, raw, escapeHtml, toast, $, $$ } from './common.js';
 import { editableFields, setPath, getPath, toEngineInput } from '../engine/facts.js';
 import { calculateReturn } from '../engine/taxEngine.js';
 import { complianceAgent } from '../engine/localAgents.js';
 import { createMaskingSession } from '../engine/redact.js';
-import { renderDocument } from './viewer.js';
+import { renderDocument, validationHtml } from './viewer.js';
+import { validateLine } from '../engine/validate.js';
+import { localReviewAgent } from '../engine/reviewAgent.js';
+import { activityHtml } from './agentsView.js';
 import { ingestFile, analyse, loadRules, sampleFiles, UC1_SAMPLES } from './pipeline.js';
 
 const user = requireRole('accountant');
@@ -16,6 +19,8 @@ renderHeader(location.hash === '#audit' ? 'audit' : 'accountant');
 const ledger = getLedger();
 let selectedId = null;
 let viewerDoc = null;
+let rulesCache = {};
+const rulesFor = async (fy) => (rulesCache[fy] ??= await loadRules(fy));
 
 window.addEventListener('hashchange', route);
 route();
@@ -91,6 +96,14 @@ async function renderDetail() {
   const fields = editableFields(r.analysis.facts);
   const locked = r.status === 'approved';
   const flags = [...r.analysis.flags].sort((a, b) => ({ high: 0, medium: 1, info: 2 }[a.severity] - { high: 0, medium: 1, info: 2 }[b.severity]));
+  const rules = await rulesFor(r.financialYear).catch(() => null);
+  const vctx = { facts: r.analysis.facts, items: r.items, answers: r.analysis.answers || {}, questions: r.analysis.questions || [], status: r.status, approvedBy: r.approvedBy, approvedAt: r.approvedAt, rules };
+  const validationFor = (f) => {
+    const key = lineKeyForPath(f.path, r.analysis.facts);
+    const line = key && r.result.lines.find((l) => l.key === key);
+    return line ? validateLine(line, vctx) : null;
+  };
+  const answered = (r.analysis.questions || []).map((q) => ({ q, a: r.analysis.answers?.[q.id] }));
 
   box.innerHTML = html`
     <div class="detail-head">
@@ -109,18 +122,22 @@ async function renderDetail() {
       <div><small>Net tax</small><b>${money(t.netTax)}</b></div>
       <div class="${t.refund >= 0 ? 'refund' : 'owe'}"><small>${t.refund >= 0 ? 'Refund' : 'Owing'}</small><b>${money(Math.abs(t.refund))}</b></div>
     </div>
+    ${answered.length ? raw(`<div class="flags compact">${answered.map(({ q, a }) => `<div class="flag ${a ? 'info' : 'medium'}"><span class="sev">${a ? 'Client answered' : 'Client has not answered'}</span><p>${escapeHtml(q.text)}${a ? ` <b>${escapeHtml(a.label)}</b>` : ''}</p></div>`).join('')}</div>`) : ''}
+    <section class="review-panel" id="reviewPanel"></section>
     <div class="verify">
       <div class="verify-fields">
         <h3>Figures found in the documents <small>Point at a row to see where it came from. Change a value and choose Override to correct it.</small></h3>
         <table class="fields">
-          <tbody>${fields.map((f, i) => raw(fieldRow(f, i, r, locked)))}</tbody>
+          <tbody>${fields.map((f, i) => raw(fieldRow(f, i, r, locked, validationFor(f))))}</tbody>
         </table>
       </div>
       <div class="verify-doc">
         <div class="doc-tabs">${r.docs.map((d) => raw(`<button data-doc="${escapeHtml(d.docId)}">${escapeHtml(shortName(d.docName))}</button>`))}</div>
         <div class="doc-pane" id="docPane"></div>
+        <div id="checkPane"><p class="muted small">Point at a figure to see its validation checks.</p></div>
       </div>
-    </div>`;
+    </div>
+    ${raw(activityHtml(r.analysis, { open: false }))}`;
 
   // Side-by-side: resting the mouse on a field (or clicking / tabbing to it)
   // highlights its source in the document. A short pause stops the document
@@ -128,10 +145,11 @@ async function renderDetail() {
   let hoverTimer;
   $$('.fields tr', box).forEach((tr) => {
     const refs = () => (tr.dataset.refs ? tr.dataset.refs.split(',') : []);
-    tr.addEventListener('mouseenter', () => { clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showRefs(r, refs()), 250); });
+    const show = () => { showRefs(r, refs()); showChecks(validationFor(fields[Number(tr.dataset.i)])); };
+    tr.addEventListener('mouseenter', () => { clearTimeout(hoverTimer); hoverTimer = setTimeout(show, 250); });
     tr.addEventListener('mouseleave', () => clearTimeout(hoverTimer));
-    tr.addEventListener('click', () => { clearTimeout(hoverTimer); showRefs(r, refs()); });
-    tr.addEventListener('focusin', () => { clearTimeout(hoverTimer); showRefs(r, refs()); });
+    tr.addEventListener('click', () => { clearTimeout(hoverTimer); show(); });
+    tr.addEventListener('focusin', () => { clearTimeout(hoverTimer); show(); });
   });
   $$('.doc-tabs button', box).forEach((b) => b.addEventListener('click', () => showDoc(r, b.dataset.doc, [])));
   $$('[data-save]', box).forEach((b) => b.addEventListener('click', () => override(r, fields[Number(b.dataset.save)], b)));
@@ -139,12 +157,33 @@ async function renderDetail() {
   $('#printBtn').addEventListener('click', () => printDossier(r));
   $('#jsonBtn').addEventListener('click', () => downloadJson(r));
   showDoc(r, r.docs[0]?.docId, []);
+  renderReviewPanel(r);
 }
 
-function fieldRow(f, i, r, locked) {
+/** The checks for one figure, shown under the document (the "validated" section). */
+let lastChecks = null;
+function showChecks(v) {
+  const html = v ? validationHtml(v) : '<p class="muted small">No checks for this figure.</p>';
+  if (html === lastChecks) return;
+  lastChecks = html;
+  $('#checkPane').innerHTML = html;
+}
+
+/** Which calculation line a field belongs to ("assets.0.cost" -> "asset:<id>"). */
+function lineKeyForPath(path, facts) {
+  if (path.startsWith('salary')) return 'salary';
+  if (path.startsWith('taxWithheld')) return 'withheld';
+  if (path.startsWith('wfhHours')) return 'wfh';
+  const m = path.match(/^assets\.(\d+)\./);
+  const asset = m && facts.assets?.[Number(m[1])];
+  return asset ? `asset:${asset.id}` : null;
+}
+
+function fieldRow(f, i, r, locked, v) {
   const origin = originForPath(r.analysis.facts, f.path);
-  return `<tr data-refs="${escapeHtml((f.refs || []).join(','))}">
-    <td><label for="f${i}">${escapeHtml(f.label)}</label><small class="origin">${escapeHtml(origin || '')}</small></td>
+  const badge = v && f.path.split('.').length <= 2 || (v && /\.cost$/.test(f.path)) ? `<span class="v-badge ${v.status}">${v.status === 'review' ? '!' : '✓'} ${escapeHtml(v.label)}</span>` : '';
+  return `<tr data-i="${i}" data-refs="${escapeHtml((f.refs || []).join(','))}">
+    <td><label for="f${i}">${escapeHtml(f.label)}</label>${badge}<small class="origin">${escapeHtml(origin || '')}</small></td>
     <td><input id="f${i}" type="${f.type === 'date' ? 'date' : 'number'}" step="any" value="${escapeHtml(f.value ?? '')}" ${locked ? 'disabled' : ''}></td>
     <td>${locked ? '' : `<button class="btn ghost small" data-save="${i}">Override</button>`}</td>
   </tr>`;
@@ -170,6 +209,68 @@ async function showDoc(r, docId, refs) {
   await renderDocument($('#docPane'), { ...doc, items: r.items }, refs);
 }
 
+// ------------------------------------------------------------ review agent
+function renderReviewPanel(r) {
+  const box = $('#reviewPanel');
+  if (!box) return;
+  const rv = r.analysis.review;
+  const REC = { approve: ['approve', 'Recommendation: ready to approve'], adjust: ['adjust', 'Recommendation: check some figures first'], query_client: ['query', 'Recommendation: ask the client first'] };
+  const [cls, recText] = REC[rv?.recommendation] || ['', ''];
+  const message = rv?.clientQuestions?.length ? clientMessage(r, rv.clientQuestions) : '';
+  box.innerHTML = `<header><h3>Review agent <span class="tag">AI suggestion: you decide</span></h3>
+      <button class="btn small ${rv ? 'ghost' : 'primary'}" id="reviewBtn">${rv ? 'Run the review again' : 'Run review agent'}</button></header>
+    <div class="review-body">${rv ? `
+      <p class="review-rec ${cls}">${escapeHtml(recText)}</p>
+      <p>${escapeHtml(rv.summary || '')}</p>
+      ${rv.notes?.length ? `<div><b>What it found</b><ul>${rv.notes.map((n) => `<li>${escapeHtml(n.message)}${(n.refs || []).length ? ` <button class="src-chip" data-review-refs="${escapeHtml(n.refs.join(','))}">Source</button>` : ''}</li>`).join('')}</ul></div>` : ''}
+      ${message ? `<div><b>Draft message to the client</b><pre class="client-msg">${escapeHtml(message)}</pre><button class="btn small ghost" id="copyMsgBtn">Copy message</button></div>` : ''}
+      <details class="review-steps"><summary>How it reached this (${rv.trace?.length || 0} steps, ${escapeHtml(rv.engine || '')})</summary>
+        <ol>${(rv.trace || []).map((t) => `<li>${escapeHtml(t.thought || '')} <code>${escapeHtml(t.tool)}</code>${t.result ? `: ${escapeHtml(t.result)}` : ''}</li>`).join('')}</ol></details>`
+      : '<p class="muted">The review agent reads the documents, re-runs the rules engine with "what if" changes, looks up the ATO rules, and suggests whether to approve, adjust or ask the client. It only advises: you make the decision.</p>'}
+    </div>`;
+  $('#reviewBtn').addEventListener('click', () => runReview(r));
+  $$('[data-review-refs]', box).forEach((b) => b.addEventListener('click', () => showRefs(r, b.dataset.reviewRefs.split(','))));
+  $('#copyMsgBtn')?.addEventListener('click', () => navigator.clipboard.writeText(message).then(() => toast('Message copied.', 'ok'), () => toast('Could not copy. Select the text instead.', 'warn')));
+}
+
+function clientMessage(r, questions) {
+  const first = String(r.owner || '').replace(/\s*\(demo\)/, '').split(' ')[0] || 'there';
+  return `Hi ${first},\n\nI'm reviewing your ${r.financialYear} tax return before it is lodged. Could you help with the following:\n\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\nThank you,\n${user.name}`;
+}
+
+async function runReview(r) {
+  const btn = $('#reviewBtn');
+  btn.disabled = true;
+  btn.textContent = 'Reviewing...';
+  const rules = await rulesFor(r.financialYear);
+  const masked = r.masked || r.items;
+  const base = { facts: r.analysis.facts, documents: (r.analysis.documents || []).map((d) => ({ docId: d.docId, kind: d.kind, aiKind: d.aiKind })), flags: r.analysis.flags, questions: r.analysis.questions || [], answers: r.analysis.answers || {} };
+  let out = null;
+  let engine = 'On-device rules';
+  const status = await cloudStatus().catch(() => ({}));
+  if (status.cloudAi) {
+    try {
+      const res = await fetch('/api/review', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...base, financialYear: r.financialYear, items: masked.map(({ id, docId, text }) => ({ id, docId, text })), result: { totals: r.result.totals }, tally: r.analysis.tally || null }) });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      out = body;
+      engine = `Cloud AI (${body.model || 'Gemini'})`;
+    } catch (error) {
+      toast(`Cloud review unavailable (${error.message}). Using the on-device review agent.`, 'warn');
+    }
+  }
+  if (!out) out = localReviewAgent({ ...base, items: masked, rules });
+  r.analysis.review = { ...out.review, trace: out.trace, engine, by: user.name, at: new Date().toISOString() };
+  try {
+    await saveReturn(r);
+  } catch (error) {
+    toast(`Review done, but saving it failed: ${error.message}`, 'error');
+  }
+  await ledger.append({ action: 'review agent run', returnId: r.id, to: out.review.recommendation }).catch(() => {});
+  renderReviewPanel(r);
+}
+
 // ------------------------------------------------------------ override (NFR-011)
 async function override(r, field, button) {
   const inputEl = button.closest('tr').querySelector('input');
@@ -189,8 +290,8 @@ async function override(r, field, button) {
   // Re-run the deterministic compliance checks on the corrected facts
   const docsMeta = r.docs.map((d) => ({ ...d, kind: r.analysis.documents?.find((x) => x.docId === d.docId)?.kind }));
   const recheck = complianceAgent(facts, docsMeta, rules);
-  const keep = r.analysis.flags.filter((f) => ['AI_UNVERIFIED', 'AGENTS_DISAGREE', 'CLOUD_FALLBACK', 'LOW_OCR_CONFIDENCE'].includes(f.code));
-  r.analysis = { ...r.analysis, facts, flags: [...recheck.flags, ...keep], riskScore: recheck.riskScore };
+  const keep = r.analysis.flags.filter((f) => ['AI_UNVERIFIED', 'AGENTS_DISAGREE', 'AI_DOUBTS_CLAIM', 'CLOUD_FALLBACK', 'LOW_OCR_CONFIDENCE'].includes(f.code));
+  r.analysis = { ...r.analysis, facts, flags: [...recheck.flags, ...keep], riskScore: recheck.riskScore, review: null };
   r.result = result;
   r.riskScore = recheck.riskScore;
   try {

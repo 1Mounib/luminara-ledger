@@ -126,15 +126,26 @@ function showTokens(text) {
   return escapeHtml(text).replace(/&lt;PII_[A-Z]+_\d+&gt;/g, (t) => `<span class="tok">${t}</span>`);
 }
 
-/** Opens the viewer in a pop-up window over the page. */
-export function openViewer(doc, highlightIds, caption = '') {
+/** Opens the viewer in a pop-up window over the page, with the figure's validation checks when given. */
+export function openViewer(doc, highlightIds, caption = '', validation = null) {
   const dialog = document.createElement('dialog');
   dialog.className = 'viewer-dialog';
-  dialog.innerHTML = `<header><div><b>${escapeHtml(doc.docName)}</b><small>${escapeHtml(caption)}</small></div><button class="btn ghost small" data-close>Close</button></header><div class="viewer-body"></div>`;
+  dialog.innerHTML = `<header><div><b>${escapeHtml(doc.docName)}</b><small>${escapeHtml(caption)}</small></div><button class="btn ghost small" data-close>Close</button></header>${validation ? validationHtml(validation) : ''}<div class="viewer-body"></div>`;
   document.body.append(dialog);
   dialog.showModal();
   dialog.addEventListener('close', () => dialog.remove());
   dialog.querySelector('[data-close]').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
-  renderDocument(dialog.querySelector('.viewer-body'), doc, highlightIds);
+  if (doc.docId) renderDocument(dialog.querySelector('.viewer-body'), doc, highlightIds);
+  else dialog.querySelector('.viewer-body').innerHTML = '<p class="muted">This figure is calculated by the rules engine, not read from a single document.</p>';
+}
+
+const MARK = { ok: '✓', fail: '!', wait: '…', info: 'i' };
+
+/** The "Validated" checklist: why this figure can be trusted, or what still needs checking. */
+export function validationHtml(v) {
+  return `<section class="validation ${v.status}" aria-label="Validation checks">
+    <p class="v-status"><span class="v-badge ${v.status}">${v.status === 'review' ? '!' : '✓'} ${escapeHtml(v.label)}</span></p>
+    <ul>${v.checks.map((c) => `<li class="${c.state}"><span class="v-mark" aria-hidden="true">${MARK[c.state]}</span><div><b>${escapeHtml(c.label)}</b><small>${escapeHtml(c.detail || '')}</small></div><span class="sr">${{ ok: 'passed', fail: 'needs review', wait: 'not done yet', info: 'note' }[c.state]}</span></li>`).join('')}</ul>
+  </section>`;
 }

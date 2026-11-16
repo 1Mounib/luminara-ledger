@@ -105,21 +105,35 @@ export async function analyse({ docs, masked, rules, useCloud, onStage = () => {
   const local = runLocalSwarm(masked, rules, ocrWarnings);
 
   let cloud = null;
+  let triage = null;
   let cloudError = null;
   let payload = null;
   if (useCloud) {
     payload = { items: masked.map(({ id, docId, docName, text, cells }) => ({ id, docId, docName, text, ...(cells ? { cells } : {}) })) };
+    const post = async (body) => {
+      const res = await fetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || res.statusText);
+      return out;
+    };
     try {
-      const res = await fetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || res.statusText);
-      cloud = body;
+      // Stage 1: the triage agent decides what each document is ...
+      onStage('Agent swarm', 'sorting documents');
+      try { triage = await post({ ...payload, stage: 'triage' }); } catch { triage = null; }
+      // ... and the coordinator routes each document to the right specialist (falls back to the on-device sorting)
+      const routes = Object.fromEntries((local.documents || []).map((d) => {
+        const ai = triage?.documents?.find((x) => x.docId === d.docId);
+        return [d.docId, [...new Set([...(ai?.routedTo || []), ...(d.routedTo || [])])]];
+      }));
+      onStage('Agent swarm', 'specialist agents');
+      cloud = await post({ ...payload, routes });
     } catch (error) {
       cloudError = error.message;
     }
   }
 
-  const analysis = reconcile(local, cloud, masked);
+  const analysis = reconcile(local, cloud, masked, triage);
+  analysis.answers = {};
   if (cloudError) {
     analysis.flags.push({ severity: 'info', code: 'CLOUD_FALLBACK', message: `Cloud AI was not available (${cloudError}). The on-device agents produced these results instead.` });
   }
