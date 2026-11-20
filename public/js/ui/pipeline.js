@@ -155,7 +155,7 @@ export async function sampleFiles(names) {
   return Promise.all(names.map(async (name) => {
     const res = await fetch(`/samples/${name}`);
     const blob = await res.blob();
-    return new File([blob], name, { type: blob.type || (name.endsWith('.csv') ? 'text/csv' : 'application/pdf') });
+    return new File([blob], name.split('/').pop(), { type: blob.type || (name.endsWith('.csv') ? 'text/csv' : 'application/pdf') });
   }));
 }
 

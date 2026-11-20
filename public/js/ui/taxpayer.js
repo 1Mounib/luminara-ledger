@@ -111,6 +111,8 @@ const drop = $('#dropzone');
 drop.addEventListener('drop', (e) => addFiles([...e.dataTransfer.files]));
 $('#loadSamples').addEventListener('click', async () => addFiles(await sampleFiles(UC1_SAMPLES)));
 $('#loadOcr').addEventListener('click', async () => addFiles(await sampleFiles(['laptop-stand-receipt.png'])));
+// A laptop is often used personally too, so the Deduction agent asks how much is for work
+$('#loadLaptop').addEventListener('click', async () => addFiles(await sampleFiles(['extra/laptop-invoice.pdf'])));
 
 // Import from Gmail (only shown when a Google Client ID is set in config.js
 // AND the admin has the Gmail connector switched on)
