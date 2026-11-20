@@ -565,7 +565,7 @@ ol.agent-cards { list-style: none; margin: 0; padding: 0 .9rem .9rem; display: g
 /* ---------- admin settings ---------- */
 .admin h3 { margin: 0 0 .25rem; color: var(--ink); }
 .admin h4 { margin: 1.5rem 0 .5rem; color: var(--ink); font-size: .95rem; }
-.admin .tabs { overflow-x: auto; scrollbar-width: thin; }
+.admin .tabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .admin .tabs button { flex: none; padding: .6rem 1rem; white-space: nowrap; }
 .admin-status { display: flex; align-items: center; gap: .5rem; font-size: .9rem; color: var(--text); background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius); padding: .55rem .75rem; margin: 0 0 .5rem; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--muted); }
