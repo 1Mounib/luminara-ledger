@@ -25,7 +25,7 @@ newuser() { $Q -c "insert into auth.users(email,raw_user_meta_data) values ('$1'
 
 ALEX=$(newuser alex@demo.com '{"full_name":"Alex Nguyen","role":"taxpayer"}')
 EVE=$(newuser eve@demo.com '{"full_name":"Eve","role":"accountant","practice_code":"WRONG"}')
-JORDAN=$(newuser jordan@demo.com '{"full_name":"Jordan Lee","role":"accountant","practice_code":"LUMINARA-2026"}')
+JORDAN=$(newuser jordan@demo.com '{"full_name":"Jordan Lee","role":"accountant","practice_code":"TaxMate-2026"}')
 
 check "wrong practice code -> taxpayer" "$($Q -c "select role from profiles where id='$EVE'")" "taxpayer"
 check "right practice code -> accountant" "$($Q -c "select role from profiles where id='$JORDAN'")" "accountant"
